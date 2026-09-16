@@ -24,11 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # enablement:true turns Pages on automatically, so there is no
-      # setting to flip by hand before the first run
+      # No enablement flag here: GITHUB_TOKEN cannot create a Pages site
+      # ("Resource not accessible by integration"), on public repos too.
+      # A repo admin switches Pages on once, under
+      # Settings -> Pages -> Source: GitHub Actions. This step then just
+      # reads that config.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       # the site is already static — publish the repo as-is
       - uses: actions/upload-pages-artifact@v3

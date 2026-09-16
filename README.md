@@ -33,18 +33,21 @@ python3 -m http.server 8080
 
 ### Putting it on the web
 
-The repo ships a Pages workflow (`.github/workflows/deploy-pages.yml`), but **GitHub will not let any
-automation switch Pages on for the first time** — that is an admin-only action, by design. It takes one visit:
+The repo ships a Pages workflow (`.github/workflows/deploy-pages.yml`), but **no automation can switch
+Pages on for the first time** — `GITHUB_TOKEN` is refused by that API even on a public repo. A repo admin
+turns it on once:
 
 > **[github.com/qgabik/gabikOS/settings/pages](https://github.com/qgabik/gabikOS/settings/pages)**
-> → *Source: **GitHub Actions***
+> → under **Build and deployment**, set *Source* to **GitHub Actions**
 
-The workflow takes over from there and the site lands at `https://qgabik.github.io/gabikOS/`.
-(*Deploy from a branch → root* works just as well — the site is already static, so no build is involved.)
+That is the whole setup. The workflow deploys on every push from then on, and the site is at
+`https://qgabik.github.io/gabikOS/`.
 
-One catch: **this repository is private, and Pages on a private repository requires a paid GitHub plan.**
-On a free account, make the repo public first (*Settings → General → Danger Zone → Change visibility*).
-Nothing here holds secrets — it is all client-side code, and your actual data never leaves your browser.
+*Deploy from a branch → root* works too and skips Actions entirely — the site is already static, so there
+is nothing to build. If you pick that, delete the workflow so it stops reporting failures.
+
+Note that Pages on a **private** repo needs a paid GitHub plan; on a free account the repo must be public.
+Nothing here holds secrets — it is all client-side code, and your data never leaves your browser.
 
 ## The modules
 
