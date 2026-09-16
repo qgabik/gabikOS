@@ -151,3 +151,17 @@ kbd{font-family:var(--font);font-size:10.5px;font-weight:600;padding:2px 5.5px;b
   .hide-sm{display:none}
   .view{padding-bottom:100px}
 }
+
+/* ─── Installed as a phone app ───────────────────────────────────
+   Standalone mode has no browser chrome, so the app itself must
+   keep clear of the notch and the home indicator. Scoped to
+   display-mode so normal browser tabs are untouched. */
+@media (display-mode: standalone), (display-mode: fullscreen){
+  .topbar{height:calc(var(--topbar-h) + env(safe-area-inset-top,0px));
+    padding-top:env(safe-area-inset-top,0px)}
+  .sidebar__head{padding-top:calc(16px + env(safe-area-inset-top,0px))}
+  .sidebar__foot{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  .view{padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+  .focus-hud{bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+  .toasts{bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+}

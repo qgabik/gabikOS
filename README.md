@@ -49,6 +49,17 @@ is nothing to build. If you pick that, delete the workflow so it stops reporting
 Note that Pages on a **private** repo needs a paid GitHub plan; on a free account the repo must be public.
 Nothing here holds secrets — it is all client-side code, and your data never leaves your browser.
 
+## On your phone
+
+Open the site and install it to the home screen — it then runs full-screen with its own icon, no
+browser bars, exactly like a native app:
+
+- **iPhone (Safari)** — Share → *Add to Home Screen*
+- **Android (Chrome)** — ⋮ menu → *Add to Home screen* / *Install app*
+
+A web app manifest and icons ship with the repo, and the layout keeps clear of the notch and the
+home indicator when it runs installed.
+
 ## The modules
 
 | Module | What it does |
