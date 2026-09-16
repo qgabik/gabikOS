@@ -5,8 +5,9 @@ import { store, S, settings, profile, seedStarter } from '../core/store.js';
 import { registerView, navigate, render, params, allViews } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, pageHead, statTile, qs, qsa } from '../core/ui.js';
-import { esc, download, pickFile, plural, initials, fmtDate, today } from '../core/util.js';
-import { applyTheme, ACCENTS } from '../core/theme.js';
+import { esc, download, pickFile, plural, initials, fmtDate, today, cap, relTime } from '../core/util.js';
+import { applyTheme, setTheme, ACCENTS, THEMES, themeById } from '../core/theme.js';
+import { sync, syncNow, syncLabel, onSyncChange } from '../core/sync.js';
 
 export const SHORTCUTS = [
   ['Ctrl / ⌘ + K', 'Open the command palette'],
@@ -94,28 +95,73 @@ registerView('settings', {
     }
 
     if (tab === 'appearance') {
-      body = `<div class="card mb-4"><div class="card__head">${icon('sun')}<h3>Theme</h3></div>
+      const cur = s.theme === 'auto' ? 'auto' : themeById(s.theme).id;
+      body = `<div class="card mb-4"><div class="card__head">${icon('palette')}<h3>Theme</h3>
+        <span class="chip">${esc(THEMES.length)} palettes</span></div>
         <div class="card__body">
-          <div class="theme-pick">
-            ${[['dark', 'Dark', 'moon'], ['light', 'Light', 'sun'], ['auto', 'Match system', 'settings']].map(([k, l, ic]) => `
-              <button class="theme-opt ${s.theme === k ? 'is-on' : ''}" data-theme-set="${k}">
-                <span class="theme-opt__prev theme-opt__prev--${k}"></span>
-                ${icon(ic, 'ic ic--sm')}<span>${esc(l)}</span>
+          <p class="dim mb-4" style="font-size:13px">Every palette is tuned for long sessions — no pure black,
+            no pure white, and body text held at about 11:1 instead of the glare of maximum contrast.</p>
+          <div class="theme-gallery">
+            ${THEMES.map(t => `
+              <button class="theme-card ${cur === t.id ? 'is-on' : ''}" data-theme-set="${t.id}"
+                style="--c1:${t.swatch[0]};--c2:${t.swatch[1]}">
+                <span class="theme-card__prev">
+                  <span class="theme-card__bar"></span><span class="theme-card__dot"></span>
+                </span>
+                <strong>${esc(t.name)}</strong>
+                <small>${esc(t.hint)}</small>
               </button>`).join('')}
+            <button class="theme-card ${cur === 'auto' ? 'is-on' : ''}" data-theme-set="auto"
+              style="--c1:#12141c;--c2:#f7f8fc">
+              <span class="theme-card__prev theme-card__prev--auto">
+                <span class="theme-card__bar"></span><span class="theme-card__dot"></span>
+              </span>
+              <strong>Match system</strong>
+              <small>Follows your device, light by day and dark by night.</small>
+            </button>
           </div>
         </div></div>
 
-      <div class="card"><div class="card__head">${icon('palette')}<h3>Accent colour</h3></div>
+      <div class="card mb-4"><div class="card__head">${icon('sparkles')}<h3>Accent colour</h3></div>
         <div class="card__body">
           <div class="accent-pick">
             ${ACCENTS.map(a => `<button class="accent-opt ${s.accent.toLowerCase() === a.hex.toLowerCase() ? 'is-on' : ''}"
               data-accent="${a.hex}" style="--a:${a.hex}" title="${esc(a.name)}">
               <span></span><small>${esc(a.name)}</small></button>`).join('')}
           </div>
-          <div class="row gap-3 mt-4">
+          <div class="row gap-3 mt-4 row--wrap">
             <label class="field__label">Custom</label>
             <input type="color" class="input" style="width:70px" value="${esc(s.accent)}" data-accent-custom />
-            <span class="dim" style="font-size:12.5px">Pick any colour you like</span>
+            <span class="dim" style="font-size:12.5px">Any colour you pick is darkened or lightened
+              automatically until it stays readable on the palette you chose.</span>
+          </div>
+          <hr class="divider" />
+          <label class="check">
+            <input type="checkbox" data-toggle-set="colorfulNav"${s.colorfulNav ? ' checked' : ''} />
+            <span class="check__box"><svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg></span>
+            <span>Give every module its own colour</span>
+          </label>
+          <div class="field__hint" style="margin-left:29px">Tasks blue, habits green, money gold — so the
+            sidebar reads as places rather than a list.</div>
+        </div></div>
+
+      <div class="card"><div class="card__head">${icon('eye')}<h3>Reading comfort</h3></div>
+        <div class="card__body col gap-5">
+          <div>
+            <div class="row row--between mb-2">
+              <label class="field__label">Text size</label>
+              <strong class="mono" style="font-size:13px">${Math.round((s.textScale || 1) * 100)}%</strong>
+            </div>
+            <input type="range" class="range" min="0.85" max="1.3" step="0.05"
+              value="${s.textScale || 1}" data-scale />
+            <div class="field__hint">Scales the whole interface, not just body copy.</div>
+          </div>
+          <div>
+            <label class="field__label mb-2">Row spacing</label>
+            <div class="seg" data-density-set>
+              ${['compact', 'normal', 'roomy'].map(d => `<button class="${(s.density || 'normal') === d ? 'is-on' : ''}"
+                data-density="${d}">${esc(cap(d))}</button>`).join('')}
+            </div>
           </div>
         </div></div>`;
     }
@@ -149,14 +195,29 @@ registerView('settings', {
     }
 
     if (tab === 'data') {
+      const sl = syncLabel();
       body = `
-      <div class="card card--pad mb-4 callout">
-        <div class="row gap-3">
-          <span class="stat__icon">${icon('lock')}</span>
-          <div><h3>Everything stays on this device</h3>
-            <p class="dim mt-2" style="font-size:13.2px">GabikOS has no account, no server and no tracking. Your data lives in
-            this browser's local storage. That means it is private — and it also means clearing your browser data
-            deletes it. <strong>Export a backup regularly.</strong></p></div>
+      <div class="card card--pad mb-4 callout" data-sync-card>
+        <div class="row gap-3 row--wrap">
+          <span class="stat__icon">${icon(sl.icon)}</span>
+          <div class="grow">
+            <div class="row gap-2 row--wrap">
+              <h3>${sync.enabled ? 'Synced across your devices' : 'Saved on this device'}</h3>
+              <span class="chip ${sl.tone ? 'chip--' + sl.tone : ''}" data-sync-chip>${esc(sl.text)}</span>
+            </div>
+            <p class="dim mt-2" style="font-size:13.2px">
+              ${sync.enabled
+                ? `Your data is kept in private storage tied to your account, so what you write on your phone
+                   is here on your computer and the other way round. It stays private to you — nobody else
+                   can read it, not even through a shared link.
+                   ${sync.lastPull ? `Last update received ${esc(relTime(sync.lastPull))}.` : ''}`
+                : `This copy has nowhere to sign you in, so your data lives in this browser only. It is completely
+                   private — and it also means clearing your browser data deletes it, and a second device starts
+                   empty. <strong>Export a backup regularly</strong>, or use the claude.ai copy, which syncs.`}
+            </p>
+            ${sync.detail ? `<p class="dim mt-2" style="font-size:12px">${esc(sync.detail)}</p>` : ''}
+            ${sync.enabled ? `<button class="btn btn--sm mt-3" data-sync-now>${icon('refresh')}Sync now</button>` : ''}
+          </div>
         </div>
       </div>
 
@@ -239,9 +300,27 @@ registerView('settings', {
     });
 
     on(root, 'click', '[data-theme-set]', (e, el) => {
-      store.setSetting('theme', el.dataset.themeSet);
-      applyTheme();
+      setTheme(el.dataset.themeSet);
       render();
+      document.dispatchEvent(new CustomEvent('gabikos:chrome'));
+    });
+    on(root, 'click', '[data-density]', (e, el) => {
+      store.setSetting('density', el.dataset.density);
+      applyTheme(); render();
+    });
+    on(root, 'change', '[data-toggle-set]', (e, el) => {
+      store.setSetting(el.dataset.toggleSet, el.checked);
+      applyTheme(); render();
+      document.dispatchEvent(new CustomEvent('gabikos:chrome'));
+    });
+    root.querySelector('[data-scale]')?.addEventListener('input', e => {
+      store.setSetting('textScale', Number(e.target.value));
+      applyTheme();
+      const out = root.querySelector('[data-scale]')?.previousElementSibling?.querySelector('strong');
+      if (out) out.textContent = Math.round(Number(e.target.value) * 100) + '%';
+    });
+    on(root, 'click', '[data-sync-now]', () => {
+      syncNow() ? toast('Pushing everything to the cloud…', 'info') : toast('Sync is not available here', 'warn');
     });
     on(root, 'click', '[data-accent]', (e, el) => {
       store.setSetting('accent', el.dataset.accent);

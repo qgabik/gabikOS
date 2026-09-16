@@ -13,8 +13,11 @@ export function blankState() {
     createdAt: Date.now(),
     profile: { name: 'Gabik', tagline: 'Building a better day, every day.', onboarded: false },
     settings: {
-      theme: 'dark',
-      accent: '#7c5cff',
+      theme: 'midnight',
+      accent: '#8b6dff',
+      density: 'normal',
+      textScale: 1,
+      colorfulNav: true,
       currency: '€',
       weekStartsOn: 1,
       pomodoro: { focus: 25, short: 5, long: 15, rounds: 4 },
@@ -49,6 +52,9 @@ export function blankState() {
 
     /* meta */
     activity: [],          // recent actions, newest first
+
+    /* local-only sync bookkeeping — never itself synced */
+    syncMeta: { slices: {}, lastPull: 0 },
   };
 }
 
@@ -111,8 +117,18 @@ class Store {
     if (!meta.silentHistory) this.history.push(JSON.stringify(this.state));
     if (this.history.length > 40) this.history.shift();
     fn(this.state);
+    if (!meta.fromRemote) this.touch(meta.key);
     this.persist();
     this.emit(meta);
+  }
+
+  /** Record that a top-level key changed, so sync knows what to push.
+   *  No key means "assume everything" (import, reset, seed). */
+  touch(key) {
+    const now = Date.now();
+    this.state.syncMeta ??= { slices: {}, lastPull: 0 };
+    const slices = key ? [key] : Object.keys(blankState()).filter(k => k !== 'syncMeta');
+    for (const k of slices) this.state.syncMeta.slices[k] = now;
   }
 
   undo() {

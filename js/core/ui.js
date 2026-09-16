@@ -3,6 +3,9 @@
    ═══════════════════════════════════════════════════════════════ */
 import { icon, PICKABLE } from './icons.js';
 import { esc, uid } from './util.js';
+import { currentView, getView } from './router.js';
+import { hueFor } from './theme.js';
+import { settings } from './store.js';
 
 /* ─── DOM ─── */
 export const qs  = (sel, root = document) => root.querySelector(sel);
@@ -424,8 +427,17 @@ export const emptyState = (iconName, title, text, actionHtml = '') => `
     ${actionHtml}
   </div>`;
 
-export const pageHead = (title, subtitle, actions = '', iconName = '') => `
-  <div class="page-head">
+/** The hue for the screen being drawn: an explicit one, else the view's
+ *  own (a custom tracker's colour), else the module palette. */
+function currentHue(explicit) {
+  if (explicit) return explicit;
+  if (!settings().colorfulNav) return 'var(--accent)';
+  const id = currentView();
+  return getView(id)?.hue || hueFor(id);
+}
+
+export const pageHead = (title, subtitle, actions = '', iconName = '', hue = '') => `
+  <div class="page-head" style="--hue:${esc(currentHue(hue))}">
     <div class="page-head__txt">
       <h1>${iconName ? `<span class="page-head__icon">${icon(iconName, 'ic ic--lg')}</span>` : ''}${esc(title)}</h1>
       ${subtitle ? `<p>${esc(subtitle)}</p>` : ''}

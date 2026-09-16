@@ -52,15 +52,16 @@
   color:var(--text-2);font-size:13.6px;font-weight:500;position:relative;text-align:left;
   transition:background var(--t-fast),color var(--t-fast);white-space:nowrap}
 .nav__item:hover{background:var(--hover);color:var(--text)}
-.nav__item.is-active{background:var(--accent-soft);color:var(--text);font-weight:600}
+.nav__item.is-active{color:var(--text);font-weight:600;
+  background:color-mix(in srgb,var(--hue,var(--accent)) 15%,transparent)}
 .nav__item.is-active::before{content:'';position:absolute;left:-10px;top:50%;transform:translateY(-50%);
-  width:3px;height:19px;border-radius:0 3px 3px 0;background:var(--accent)}
-.nav__item.is-active .ic{color:var(--accent)}
-.nav__item .ic{flex:none;opacity:.92}
+  width:3px;height:19px;border-radius:0 3px 3px 0;background:var(--hue,var(--accent))}
+.nav__item .ic{flex:none;color:var(--hue,currentColor);opacity:.8;transition:opacity var(--t-fast)}
+.nav__item:hover .ic,.nav__item.is-active .ic{opacity:1}
+.nav__item.is-active .nav__badge{background:var(--hue,var(--accent));color:#fff}
 .nav__item>span:not(.nav__badge){flex:1;overflow:hidden;text-overflow:ellipsis}
 .nav__badge{font-size:10.5px;font-weight:700;padding:1.5px 6.5px;border-radius:99px;
   background:var(--surface-3);color:var(--text-2);flex:none;font-variant-numeric:tabular-nums}
-.nav__item.is-active .nav__badge{background:var(--accent);color:#fff}
 .nav__badge--hot{background:var(--bad-soft);color:var(--bad)}
 
 .sidebar__foot{padding:10px;border-top:1px solid var(--line);position:relative;z-index:1}

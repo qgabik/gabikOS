@@ -29,51 +29,79 @@
   --t:.24s var(--ease);
   --t-slow:.42s var(--ease-out);
 
+  --ui-scale:1;
   --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 
-/* ─── Dark (default) ─── */
-:root,[data-theme="dark"]{
-  --bg:#08090d;
-  --bg-2:#0c0e13;
-  --surface:#111319;
-  --surface-2:#161922;
-  --surface-3:#1d2029;
-  --hover:rgba(255,255,255,.045);
-  --active:rgba(255,255,255,.08);
-  --line:rgba(255,255,255,.075);
-  --line-strong:rgba(255,255,255,.13);
-  --text:#e9ebf2;
-  --text-2:#a2a9bb;
-  --text-3:#6b7286;
-  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
-  --shadow:0 4px 20px -4px rgba(0,0,0,.5);
-  --shadow-lg:0 24px 60px -12px rgba(0,0,0,.72);
-  --glow:0 0 0 1px var(--accent-line), 0 8px 28px -8px var(--accent-soft);
-  --grid-line:rgba(255,255,255,.035);
-  color-scheme:dark;
+/* ═══ Palettes ══════════════════════════════════════════════════
+   Tuned for long sessions: no pure black, no pure white. Body text
+   sits near 11:1 rather than the ~19:1 of #fff on #000, which is
+   what makes a screen feel harsh after an hour.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* shared dark-mode semantics */
+:root,[data-mode="dark"]{
+  --ok:#4ed69a;    --ok-soft:rgba(78,214,154,.15);
+  --warn:#f0b64d;  --warn-soft:rgba(240,182,77,.15);
+  --bad:#f4776f;   --bad-soft:rgba(244,119,111,.15);
+  --info:#54c2ee;  --info-soft:rgba(84,194,238,.15);
+  --hover:rgba(255,255,255,.05);
+  --active:rgba(255,255,255,.085);
+  --line:rgba(255,255,255,.08);
+  --line-strong:rgba(255,255,255,.145);
+  --grid-line:rgba(255,255,255,.04);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.34);
+  --shadow:0 4px 20px -4px rgba(0,0,0,.44);
+  --shadow-lg:0 24px 60px -12px rgba(0,0,0,.62);
+}
+/* shared light-mode semantics — darker so they hold on a pale ground */
+[data-mode="light"]{
+  --ok:#0f9b62;    --ok-soft:rgba(15,155,98,.13);
+  --warn:#a97400;  --warn-soft:rgba(169,116,0,.14);
+  --bad:#d64541;   --bad-soft:rgba(214,69,65,.12);
+  --info:#0a7fae;  --info-soft:rgba(10,127,174,.12);
+  --hover:rgba(20,24,40,.04);
+  --active:rgba(20,24,40,.075);
+  --line:rgba(20,24,45,.10);
+  --line-strong:rgba(20,24,45,.17);
+  --grid-line:rgba(20,24,45,.06);
+  --shadow-sm:0 1px 2px rgba(20,26,50,.06);
+  --shadow:0 6px 22px -6px rgba(20,26,50,.11);
+  --shadow-lg:0 26px 60px -14px rgba(20,26,50,.17);
 }
 
-/* ─── Light ─── */
-[data-theme="light"]{
-  --bg:#f6f7fb;
-  --bg-2:#eef0f7;
-  --surface:#ffffff;
-  --surface-2:#f8f9fc;
-  --surface-3:#eff1f7;
-  --hover:rgba(10,12,20,.038);
-  --active:rgba(10,12,20,.07);
-  --line:rgba(12,16,32,.09);
-  --line-strong:rgba(12,16,32,.16);
-  --text:#171a22;
-  --text-2:#5a6275;
-  --text-3:#8c94a6;
-  --shadow-sm:0 1px 2px rgba(16,20,40,.06);
-  --shadow:0 6px 22px -6px rgba(16,20,40,.13);
-  --shadow-lg:0 26px 60px -14px rgba(16,20,40,.2);
-  --grid-line:rgba(12,16,32,.05);
-  color-scheme:light;
+/* ─── Midnight — deep blue-black (default) ─── */
+:root,[data-theme="midnight"]{
+  --bg:#12141c; --bg-2:#171a23; --surface:#1b1f2b; --surface-2:#212636; --surface-3:#2a3143;
+  --text:#c8ccd8; --text-2:#8b93a8; --text-3:#646c81;
+}
+/* ─── Carbon — neutral grey, the gentlest dark ─── */
+[data-theme="carbon"]{
+  --bg:#17171a; --bg-2:#1c1c20; --surface:#212126; --surface-2:#27272e; --surface-3:#31313a;
+  --text:#cfcfd7; --text-2:#9595a0; --text-3:#6d6d79;
+}
+/* ─── Forest — green-tinted dark ─── */
+[data-theme="forest"]{
+  --bg:#101815; --bg-2:#14201c; --surface:#18231f; --surface-2:#1e2b26; --surface-3:#273730;
+  --text:#c8d1cb; --text-2:#869990; --text-3:#607169;
+}
+/* ─── Plum — purple dusk ─── */
+[data-theme="plum"]{
+  --bg:#16111d; --bg-2:#1b1524; --surface:#201929; --surface-2:#281f33; --surface-3:#332941;
+  --text:#cfc9d7; --text-2:#978fa4; --text-3:#71677d;
+}
+/* ─── Daylight — clean and cool ─── */
+[data-theme="daylight"]{
+  --bg:#f7f8fc; --bg-2:#eef0f7; --surface:#ffffff; --surface-2:#f8f9fd; --surface-3:#edf0f7;
+  --text:#32363e; --text-2:#565f72; --text-3:#7d8594;
+}
+/* ─── Paper — warm cream, gentlest light ─── */
+[data-theme="paper"]{
+  --bg:#f6f2e9; --bg-2:#efe9dc; --surface:#fffdf8; --surface-2:#f9f5ec; --surface-3:#f0eade;
+  --text:#35312b; --text-2:#635b4e; --text-3:#878071;
+  --line:rgba(70,58,34,.12); --line-strong:rgba(70,58,34,.2);
+  --hover:rgba(70,58,34,.045);
 }
 
 /* ─── Reset ─── */
@@ -84,7 +112,7 @@ body{
   font-family:var(--font);
   background:var(--bg);
   color:var(--text);
-  font-size:14.5px;
+  font-size:calc(14.5px * var(--ui-scale,1));
   line-height:1.55;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
@@ -158,3 +186,12 @@ small{font-size:.8rem}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
     transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* ─── Comfort: density affects the breathing room in dense lists ─── */
+[data-density="compact"]{ --row-pad:8px; }
+[data-density="normal"]{ --row-pad:12px; }
+[data-density="roomy"]{ --row-pad:17px; }
+[data-density="roomy"] .list__row,
+[data-density="roomy"] .task{ padding-top:var(--row-pad); padding-bottom:var(--row-pad); }
+[data-density="compact"] .list__row,
+[data-density="compact"] .task{ padding-top:var(--row-pad); padding-bottom:var(--row-pad); }

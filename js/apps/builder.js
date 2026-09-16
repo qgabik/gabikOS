@@ -298,6 +298,7 @@ function buildCollectionView(c) {
   registerView(collectionViewId(c), {
     title: c.name,
     icon: c.icon || 'star',
+    hue: c.color || '#8b6dff',
     group: c.group || 'Custom',
     order: 200,
     custom: true,

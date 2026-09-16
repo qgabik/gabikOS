@@ -3,10 +3,11 @@
    ═══════════════════════════════════════════════════════════════ */
 import { store, S, settings, profile, seedStarter } from './core/store.js';
 import { startRouter, render, navigate, navViews, currentView, onRender } from './core/router.js';
-import { applyTheme, toggleTheme, watchSystemTheme } from './core/theme.js';
+import { applyTheme, toggleTheme, watchSystemTheme, hueFor } from './core/theme.js';
 import { icon } from './core/icons.js';
 import { qs, qsa, on, toast, openForm, modal, confirmDialog, closeMenu } from './core/ui.js';
 import { initPalette, openPalette, closePalette, isOpen as paletteOpen } from './core/palette.js';
+import { initSync, sync, syncLabel, onSyncChange, syncNow, flush } from './core/sync.js';
 import { esc, initials, plural, today, debounce } from './core/util.js';
 
 /* ─── Load every module (each registers its own view) ─── */
@@ -59,7 +60,9 @@ function renderNav() {
       <div class="nav__label">${esc(group)}</div>
       ${items.sort((a, b) => a.order - b.order).map(v => {
         const badge = v.badge?.();
-        return `<button class="nav__item ${currentView() === v.id ? 'is-active' : ''}" data-nav="${v.id}" title="${esc(v.title)}">
+        const hue = settings().colorfulNav ? (v.hue || hueFor(v.id)) : 'var(--accent)';
+        return `<button class="nav__item ${currentView() === v.id ? 'is-active' : ''}" data-nav="${v.id}"
+          style="--hue:${esc(hue)}" title="${esc(v.title)}">
           ${icon(v.icon || 'chevronRight')}
           <span>${esc(v.title)}</span>
           ${badge ? `<span class="nav__badge ${v.id === 'tasks' && Number(badge) ? 'nav__badge--hot' : ''}">${esc(String(badge))}</span>` : ''}
@@ -75,11 +78,23 @@ function renderChrome() {
   qs('#brandSub').textContent = p.tagline ? p.tagline.slice(0, 26) : 'personal system';
   const openCount = S().tasks.filter(t => !t.done).length;
   qs('#navStreak').textContent = openCount ? `${plural(openCount, 'open task')}` : 'all clear ✓';
-  qs('#themeBtn').innerHTML = icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun');
+  qs('#themeBtn').innerHTML = icon(document.documentElement.dataset.mode === 'light' ? 'moon' : 'sun');
+  paintSync();
   qs('#focusBtn').innerHTML = icon('timer');
   qs('#collapseBtn').innerHTML = icon('panelLeft');
   qs('#menuBtn').innerHTML = icon('list');
   qs('#modalClose').innerHTML = icon('x');
+}
+
+function paintSync() {
+  const el = qs('#syncChip');
+  if (!el) return;
+  const sl = syncLabel();
+  el.className = `sync-chip sync-chip--${sl.tone || 'idle'} ${sync.status === 'syncing' ? 'is-busy' : ''}`;
+  el.innerHTML = `${icon(sl.icon, 'ic ic--sm')}<span class="hide-sm">${esc(sl.text)}</span>`;
+  el.title = sync.enabled
+    ? `${sl.text}${sync.detail ? ' — ' + sync.detail : ''} · your data follows you between devices`
+    : 'Saved in this browser only — open Settings → Data to export a backup';
 }
 
 /* ─── Global commands for the palette ─── */
@@ -96,6 +111,8 @@ function buildCommands() {
     { title: 'Record a transaction', icon: 'wallet', sub: 'Money in or out', meta: 'create', keywords: 'expense income spend', run: () => newTransaction({ date: today() }) },
     { title: 'Build a new tracker', icon: 'layers', sub: 'Create your own module', meta: 'create', keywords: 'custom collection database make', run: () => newCollection() },
     { title: 'Toggle dark / light', icon: 'sun', sub: 'Switch the theme', meta: 'system', keywords: 'theme dark light appearance', run: () => { toggleTheme(); renderChrome(); toast(`${document.documentElement.dataset.theme === 'light' ? 'Light' : 'Dark'} mode`, 'info', { duration: 1400 }); } },
+    { title: 'Sync now', icon: 'refresh', sub: 'Push everything to your other devices', meta: 'system', keywords: 'sync cloud devices upload push', run: () => { syncNow() ? toast('Syncing…', 'info') : toast('Sync is not available on this copy', 'warn'); } },
+    { title: 'Change theme', icon: 'palette', sub: 'Six palettes, tuned for long sessions', meta: 'system', keywords: 'theme colour color palette dark light appearance', run: () => navigate('settings', { tab: 'appearance' }) },
     { title: 'Export a backup', icon: 'download', sub: 'Download all your data', meta: 'system', keywords: 'backup save json data', run: () => navigate('settings', { tab: 'data' }) },
     { title: 'Keyboard shortcuts', icon: 'keyboard', sub: 'See every shortcut', meta: 'system', keywords: 'help keys hotkeys', run: showShortcuts },
     { title: 'Settings', icon: 'settings', sub: 'Preferences and data', meta: 'system', keywords: 'preferences config', run: () => navigate('settings') },
@@ -261,6 +278,12 @@ async function boot() {
   initPalette();
   initKeys();
   initFocusHud();
+
+  qs('#syncChip')?.addEventListener('click', () => navigate('settings', { tab: 'data' }));
+  onSyncChange(() => { paintSync(); if (currentView() === 'settings') render(); });
+  initSync();                                   // resolves on its own; never blocks first paint
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+  addEventListener('pagehide', flush);
 
   // keep nav badges + chrome in sync with state
   const syncChrome = debounce(() => { renderNav(); renderChrome(); }, 80);

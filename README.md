@@ -14,10 +14,18 @@ Tasks · Habits · Focus · Calendar · Notes · Journal · Goals · Health · M
 
 ## What this is
 
-GabikOS is a single-page web app that runs entirely in your browser. Everything you write stays on your
-device in local storage — there is no backend, no sign-up, and nothing is ever sent anywhere.
+GabikOS is a single-page web app with no build step and no dependencies. Open `index.html` and it runs.
 
-It has no build step and no dependencies. Open `index.html` and it runs.
+**Where your data lives depends on where you open it.**
+
+| Copy | Storage | Syncs between devices? |
+| --- | --- | --- |
+| Hosted on claude.ai | Private per-viewer cloud storage, tied to your account | **Yes** — phone ↔ computer |
+| GitHub Pages, or a local file | This browser's local storage | No — each browser is its own island |
+
+The app detects which it is and tells you in the top bar: *Synced* or *This device only*. Either way
+nobody else can read your data, and either way **Settings → Data → Export everything** writes the whole
+system to one JSON file you can carry anywhere.
 
 ## Getting started
 
@@ -75,7 +83,21 @@ home indicator when it runs installed.
 | **Health** | Workouts, weight, sleep, steps, hydration — with trend charts |
 | **Money** | Income and expenses, budgets, category donut, six-month trend |
 | **Builder** | **Create your own trackers** — see below |
-| **Settings** | Theme, accent colour, daily goals, and full data export / import |
+| **Settings** | Six themes, accent colour, reading comfort, sync status, export / import |
+
+## Looking at it for hours
+
+Six palettes — Midnight, Carbon, Forest, Plum, Daylight and Paper — plus *Match system*. None of them use
+pure black or pure white, and every one holds body text at about **11:1** contrast rather than the ~19:1 of
+`#fff` on `#000`. Maximum contrast is not the same as readable; it is what makes a screen feel like a torch
+after an hour.
+
+Whatever accent you pick is automatically darkened or lightened until it clears **4.5:1** on the palette
+you chose, so no combination can produce unreadable text. Each module also carries its own hue — tasks
+blue, habits green, money gold — so the sidebar reads as a set of places rather than a flat list.
+
+Under **Settings → Appearance** there is also a text-size slider (85–130%, scaling the whole interface)
+and compact / normal / roomy row spacing.
 
 ## The Builder
 
@@ -106,11 +128,23 @@ Places to go, Learning and Projects. Every one is fully editable after you creat
 
 ## Your data
 
-Everything lives in your browser's local storage under the key `gabikos:v1`.
+Locally, everything lives under the `gabikos:v1` key in your browser's storage. On the claude.ai copy it
+*also* lives in per-viewer cloud storage that only you can read — private even from anyone you share the
+page with.
 
-That means it is genuinely private — and it also means **clearing your browser data will delete it**.
-Use **Settings → Data → Export everything** now and then; it writes a single JSON file holding your
-entire system, which you can import again on any device.
+### How sync works
+
+State is split into ten domain slices — tasks, habits, notes, journal, money, and so on — each stored as
+its own document. Two reasons, both practical:
+
+- A document is capped at 256 KiB. One ever-growing blob would eventually fail to save.
+- Writes are last-writer-wins. Separate slices means editing a task on your phone cannot clobber a note
+  you were typing on your computer — only edits to *the same area* can race, and the newer one wins.
+
+Edits are batched (one write per pause, not per keystroke), pushed when the tab is hidden or closed, and
+every device subscribes to live updates, so a change on one shows up on the other within a second or two.
+
+**Clearing your browser data still deletes the local copy**, so export a backup now and then regardless.
 
 ## How it's built
 
