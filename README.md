@@ -31,8 +31,20 @@ npx http-server -p 8080 .     # then open http://localhost:8080
 python3 -m http.server 8080
 ```
 
-**Publish it to the web** — push this repo to GitHub, then *Settings → Pages → Deploy from branch → main / root*.
-Your system will be live at `https://<your-username>.github.io/gabikOS/`.
+### Putting it on the web
+
+The repo ships a Pages workflow (`.github/workflows/deploy-pages.yml`), but **GitHub will not let any
+automation switch Pages on for the first time** — that is an admin-only action, by design. It takes one visit:
+
+> **[github.com/qgabik/gabikOS/settings/pages](https://github.com/qgabik/gabikOS/settings/pages)**
+> → *Source: **GitHub Actions***
+
+The workflow takes over from there and the site lands at `https://qgabik.github.io/gabikOS/`.
+(*Deploy from a branch → root* works just as well — the site is already static, so no build is involved.)
+
+One catch: **this repository is private, and Pages on a private repository requires a paid GitHub plan.**
+On a free account, make the repo public first (*Settings → General → Danger Zone → Change visibility*).
+Nothing here holds secrets — it is all client-side code, and your actual data never leaves your browser.
 
 ## The modules
 
