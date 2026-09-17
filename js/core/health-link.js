@@ -168,6 +168,15 @@ export function linkTemplate(base = location.origin + location.pathname) {
   return `${base.replace(/[?#].*$/, '')}#/health?ah=1&date=DATE&steps=STEPS&bed=BED&wake=WAKE`;
 }
 
+/**
+ * The shortest URL that works, for someone building their first Shortcut:
+ * paste it, put the cursor at the end, tap the variable. The date defaults
+ * to today and every other value is optional.
+ */
+export function simpleLink(base = location.origin + location.pathname) {
+  return `${base.replace(/[?#].*$/, '')}#/health?ah=1&steps=`;
+}
+
 /* ═══ Route 2 — the cloud inbox ═══════════════════════════════ */
 
 async function sb() {
@@ -232,9 +241,11 @@ export function cloudRecipe(key) {
   return {
     url: `${cfg.url}/rest/v1/rpc/${PUSH_FN}`,
     method: 'POST',
+    // `apikey` alone is what identifies an anonymous caller. A publishable
+    // key is not a JWT, so putting it in `Authorization: Bearer` makes the
+    // server try to parse it as one and reject the whole request.
     headers: {
       apikey: cfg.key,
-      Authorization: `Bearer ${cfg.key}`,
       'Content-Type': 'application/json',
     },
     body: {
@@ -254,7 +265,7 @@ export async function cloudPush(key, sample) {
   const s = normalizeSample(sample) || { date: today() };
   const res = await fetch(`${cfg.url}/rest/v1/rpc/${PUSH_FN}`, {
     method: 'POST',
-    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
+    headers: { apikey: cfg.key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       p_key: key,
       p_day: s.date,
@@ -268,8 +279,76 @@ export async function cloudPush(key, sample) {
       p_exercise_minutes: s.exerciseMinutes,
     }),
   });
-  if (!res.ok) throw new Error((await res.text().catch(() => '')) || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const err = new Error(body || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return res.json().catch(() => ({ ok: true }));
+}
+
+/* ═══ Telling someone what is actually wrong ══════════════════
+   "It doesn't work" has half a dozen causes that look identical
+   from the outside, so check them one at a time and name the one
+   that failed.                                                  */
+
+export async function diagnose() {
+  const cfg = supabaseConfig();
+  const steps = [];
+  const add = (label, ok, detail = '', fix = '') => { steps.push({ label, ok, detail, fix }); return ok; };
+
+  if (!add('GabikOS knows which Supabase project to use', !!(cfg.url && cfg.key),
+      cfg.url || 'no project set', 'Settings → Data → Use my own project.')) return steps;
+
+  const ctx = await sb();
+  if (!add('You are signed in', !!ctx, ctx ? '' : 'no account on this device',
+      'Settings → Data → Sign in or register. If you just registered, confirm the email first.')) return steps;
+
+  // Does the SQL file's first table exist? A missing table is the usual answer.
+  let tablesOk = false;
+  try {
+    const { error } = await ctx.client.from(KEY_TABLE).select('user_id').limit(1);
+    if (error) throw error;
+    tablesOk = true;
+  } catch (err) {
+    add('The health tables exist in your database', false, String(err?.message || err),
+      'Run supabase/health-inbox.sql in the Supabase SQL editor.');
+    return steps;
+  }
+  add('The health tables exist in your database', tablesOk);
+
+  // Is the function there? Call it with a key that cannot exist: the server
+  // saying "not recognised" proves the function is reachable, and writes nothing.
+  let fnOk = false, fnDetail = '';
+  try {
+    await cloudPush('diagnostic-key-that-does-not-exist', { date: today() });
+    fnOk = true;                       // should not happen, but it is not a failure
+  } catch (err) {
+    const body = String(err?.message || '');
+    if (/not recognised|28000/i.test(body)) fnOk = true;
+    else if (/PGRST202|could not find the function|schema cache/i.test(body)) {
+      fnDetail = 'the database has not picked the function up yet';
+    } else if (err.status === 401 || /jwt|api key/i.test(body)) {
+      fnDetail = 'the project rejected the key';
+    } else fnDetail = body.slice(0, 160);
+  }
+  if (!add('Your phone can reach the server', fnOk, fnDetail,
+      fnDetail.includes('picked the function up')
+        ? 'Run `notify pgrst, \'reload schema\';` in the SQL editor, or wait a minute and try again.'
+        : 'Check the project URL and publishable key in Settings → Data → Use my own project.')) return steps;
+
+  const key = await healthKey().catch(() => null);
+  add('Your phone key is made', !!key?.key,
+    key?.key ? (key.last_used_at ? 'the phone has used it' : 'not used by the phone yet') : '',
+    key?.key ? '' : 'Tap “Create my phone key”.');
+
+  const rows = await pullInbox(30).catch(() => []);
+  add('Readings have arrived from the phone', rows.length > 0,
+    rows.length ? `${rows.length} day(s) stored` : 'nothing sent yet',
+    rows.length ? '' : 'Tap “Send a test reading”, or run your Shortcut once.');
+
+  return steps;
 }
 
 /* ═══ Backfill — Apple's own export ═══════════════════════════ */

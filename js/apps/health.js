@@ -15,7 +15,7 @@ import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, cla
 import { lineChart, barChart } from '../core/charts.js';
 import { readLink, stripLink, normalizeSample, minutesBetween, clockMins,
          healthKey, pullInbox, cloudReady, cloudRecipe, cloudPush, linkTemplate,
-         parseAppleExport, parsePasted } from '../core/health-link.js';
+         parseAppleExport, parsePasted, diagnose, simpleLink } from '../core/health-link.js';
 
 /* ─── Small formatters ─── */
 const pad2 = n => String(n).padStart(2, '0');
@@ -166,6 +166,7 @@ function healthError(err) {
   if (/does not exist|schema cache|PGRST20\d/i.test(raw))
     return 'The health tables are missing — run supabase/health-inbox.sql in Supabase first.';
   if (/not recognised|28000/i.test(raw)) return 'That key is not on this account any more. Make a new one.';
+  if (/jwt|invalid.*api key|401/i.test(raw)) return 'Your project rejected the key — check it in Settings → Data → Use my own project.';
   if (/failed to fetch|network/i.test(raw)) return 'Could not reach the server. Check your connection.';
   return raw || 'Something went wrong.';
 }
@@ -322,7 +323,7 @@ function bridgeStrip() {
 
 const copyable = (id, label, value, note = '') => `
   <div class="ah__field">
-    <label>${esc(label)}</label>
+    ${label ? `<label>${esc(label)}</label>` : ''}
     <div class="row gap-2">
       <input class="input mono" id="${id}" readonly value="${esc(value)}" style="font-size:12px">
       <button class="btn btn--sm" data-copy="${id}">${icon('copy')}</button>
@@ -330,55 +331,84 @@ const copyable = (id, label, value, note = '') => `
     ${note ? `<p class="dim mt-1" style="font-size:11.5px">${note}</p>` : ''}
   </div>`;
 
-async function openBridge() {
+async function openBridge(tab = 'link') {
   const base = location.origin + location.pathname;
-  const link = linkTemplate(base);
+  const link = simpleLink(base);
   let key = null, cloud = false;
-  try { cloud = await cloudReady(); if (cloud) key = (await healthKey())?.key || null; } catch { /* shown below */ }
+  try { cloud = await cloudReady(); if (cloud) key = (await healthKey())?.key || null; } catch { /* the checker explains */ }
 
   const recipe = cloudRecipe(key);
   const body = `
   <div class="ah">
     <div class="callout mb-4">
       <p style="font-size:13px;line-height:1.65">
-        Safari cannot open the Health app — Apple gives no website access to it, and nothing
-        GabikOS does can change that. What the iPhone <em>does</em> allow is <strong>Shortcuts</strong>:
-        it can read Health and hand the numbers to GabikOS. Set one up once and your steps
-        and sleep arrive on their own.
+        The Health app will not let a website read it — Apple allows that only to apps from the
+        App Store. So your iPhone sends the numbers <em>out</em> instead, using
+        <strong>Shortcuts</strong>, which is already on your phone. Pick a way below.
       </p>
     </div>
 
     <div class="seg mb-4" id="ahTabs">
-      <button class="is-on" data-ahtab="auto">Automatic</button>
-      <button data-ahtab="link">Simple link</button>
-      <button data-ahtab="import">Import a file</button>
+      <button class="${tab === 'link' ? 'is-on' : ''}" data-ahtab="link">Easy way</button>
+      <button class="${tab === 'auto' ? 'is-on' : ''}" data-ahtab="auto">Fully automatic</button>
+      <button class="${tab === 'import' ? 'is-on' : ''}" data-ahtab="import">From a file</button>
     </div>
 
-    <div data-ahpane="auto">
+    <div data-ahpane="link" ${tab === 'link' ? '' : 'hidden'}>
+      <p class="ah__lede">Nothing to set up, no account, works in about two minutes.
+        The only catch: GabikOS has to open for the numbers to arrive.</p>
+
+      <div class="ah__steps">
+        <ol>
+          <li>Open the <strong>Shortcuts</strong> app → <strong>+</strong> (top right) → <strong>New Shortcut</strong>.</li>
+          <li>Search <strong>Find Health Samples</strong> and tap it.
+            Tap the blue <strong>Health Samples</strong> word and choose <strong>Steps</strong>.
+            Tap <strong>Add Filter</strong> → <strong>Start Date</strong> → <strong>is today</strong>.</li>
+          <li>Search <strong>Calculate Statistics</strong> and tap it. Set it to <strong>Sum</strong>
+            of <strong>Health Samples</strong>.</li>
+          <li>Search <strong>Text</strong> and tap it. Paste this in:</li>
+        </ol>
+        ${copyable('ahLink', '', link,
+          'Now delete nothing — just put the cursor at the very end, after <code>steps=</code>, and tap the <strong>Statistic</strong> variable above the keyboard.')}
+        <ol start="5">
+          <li>Search <strong>Open URLs</strong> and tap it. It will pick up the Text automatically.</li>
+          <li>Name it <strong>Steps to GabikOS</strong> and tap <strong>Done</strong>.</li>
+        </ol>
+        <p class="ah__tip">${icon('zap', 'ic ic--sm')} Run it once from the Shortcuts app. GabikOS should
+          open with today's steps already in. After that, add it to your home screen, or put it on a
+          <strong>Time of Day</strong> automation so it runs itself.</p>
+      </div>
+    </div>
+
+    <div data-ahpane="auto" ${tab === 'auto' ? '' : 'hidden'}>
+      <p class="ah__lede">Harder to set up, but then it is truly hands-off: the numbers arrive on your
+        phone <em>and</em> your computer without opening anything.</p>
       ${cloud ? `
-        <p class="dim mb-3" style="font-size:13px">The Shortcut posts straight to your account, so the numbers
-          land on every device even if GabikOS is closed. Runs in the background once you add the automation.</p>
         ${key
-          ? copyable('ahKey', 'Your phone key', key, 'Treat it like a password. It can add readings to your account and nothing else.')
-          : `<button class="btn btn--primary mb-3" data-ah-key>${icon('sparkles')}Create my phone key</button>`}
+          ? copyable('ahKey', 'Step 1 · your phone key', key, 'Treat it like a password. It can only add readings to your account — it cannot read anything.')
+          : `<button class="btn btn--primary mb-4" data-ah-key>${icon('sparkles')}Make my phone key</button>`}
         ${key ? `
-        ${copyable('ahUrl', 'URL', recipe.url)}
-        ${copyable('ahHead', 'Headers', `apikey: ${recipe.headers.apikey}`, 'Add a second header <code>Authorization</code> with <code>Bearer</code> and the same value, and <code>Content-Type: application/json</code>.')}
+        ${copyable('ahUrl', 'Step 2 · the address', recipe.url)}
+        ${copyable('ahApiKey', 'Step 3 · the key for the header below', recipe.headers.apikey)}
         <div class="ah__steps">
-          <h4>On your iPhone</h4>
           <ol>
-            <li>Open <strong>Shortcuts</strong> → <strong>+</strong> → search <strong>Find Health Samples</strong>.</li>
-            <li>Type <strong>Steps</strong>, and set the date range to <strong>Today</strong>. Add <strong>Calculate Statistics</strong> → <strong>Sum</strong>. Rename the result <em>Steps</em>.</li>
-            <li>Add a second <strong>Find Health Samples</strong> for <strong>Sleep Analysis</strong>, range <strong>Today</strong>, then <strong>Calculate Statistics</strong> → <strong>Sum</strong> of <strong>Duration</strong> in <strong>minutes</strong>. Rename it <em>Sleep</em>.</li>
-            <li>Add <strong>Get Contents of URL</strong>. Paste the URL above, set <strong>Method</strong> to <strong>POST</strong>, add the three headers, and set <strong>Request Body</strong> to <strong>JSON</strong> with these keys:</li>
+            <li>Build the shortcut exactly as in <strong>Easy way</strong> steps 1–3, so you have the
+              <strong>Statistic</strong> with today's steps.</li>
+            <li>Search <strong>Get Contents of URL</strong> and tap it. Paste the address from step 2.</li>
+            <li>Tap <strong>Show More</strong>. Set <strong>Method</strong> to <strong>POST</strong>.</li>
+            <li>Under <strong>Headers</strong> tap <strong>Add new field</strong> — twice:</li>
           </ol>
-          <pre class="ah__code mono">p_key      (Text)   ${esc(key)}
-p_day      (Text)   Current Date, formatted yyyy-MM-dd
-p_steps    (Number) Steps
-p_sleep_minutes (Number) Sleep</pre>
+          <pre class="ah__code mono">apikey         ${esc(recipe.headers.apikey)}
+Content-Type   application/json</pre>
           <ol start="5">
-            <li>Name it <strong>Send health to GabikOS</strong> and save.</li>
-            <li>Go to the <strong>Automation</strong> tab → <strong>+</strong> → <strong>Time of Day</strong> → pick a time (22:00 works well), <strong>Run Immediately</strong>, and choose the shortcut.</li>
+            <li>Set <strong>Request Body</strong> to <strong>JSON</strong> and add three fields:</li>
+          </ol>
+          <pre class="ah__code mono">p_key    Text     ${esc(key)}
+p_day    Text     (the Current Date variable, formatted yyyy-MM-dd)
+p_steps  Number   (the Statistic variable)</pre>
+          <ol start="6">
+            <li>Name it, save, then <strong>Automation</strong> tab → <strong>+</strong> →
+              <strong>Time of Day</strong> → 22:00 → <strong>Run Immediately</strong>.</li>
           </ol>
         </div>
         <div class="row gap-2 mt-4 row--wrap">
@@ -388,41 +418,29 @@ p_sleep_minutes (Number) Sleep</pre>
         </div>` : ''}
       ` : `
         <div class="callout callout--warn mb-3">
-          <p style="font-size:13px">The automatic route needs your GabikOS account, so the phone knows
-          where to send the numbers. Sign in from <strong>Settings → Account</strong>, then come back.
-          The <strong>Simple link</strong> tab works right now without one.</p>
+          <p style="font-size:13px">This way needs two things first: a GabikOS account
+            (<strong>Settings → Data → Sign in</strong>), and the file
+            <code>supabase/health-inbox.sql</code> run once in Supabase. The
+            <strong>Easy way</strong> tab needs neither.</p>
         </div>`}
     </div>
 
-    <div data-ahpane="link" hidden>
-      <p class="dim mb-3" style="font-size:13px">No account needed. The Shortcut opens GabikOS with the numbers
-        in the address, GabikOS takes them in and tidies the address again. The page has to open for it to land.</p>
-      ${copyable('ahLink', 'URL for the Shortcut', link,
-        'Replace <code>DATE</code>, <code>STEPS</code>, <code>BED</code> and <code>WAKE</code> with variables in a <strong>Text</strong> action, then <strong>Open URLs</strong>.')}
-      <div class="ah__steps">
-        <h4>On your iPhone</h4>
-        <ol>
-          <li><strong>Find Health Samples</strong> → <strong>Steps</strong>, <strong>Today</strong> → <strong>Calculate Statistics</strong> → <strong>Sum</strong>.</li>
-          <li>Add a <strong>Text</strong> action, paste the URL, and drop the variables in place of the capitals.</li>
-          <li>Add <strong>Open URLs</strong> with that text.</li>
-        </ol>
-        <p class="dim" style="font-size:12px">Leave out any value you do not want — <code>&amp;bed=</code> and
-          <code>&amp;wake=</code> are optional, and <code>&amp;sleep=452</code> works instead of them.</p>
-      </div>
-    </div>
-
-    <div data-ahpane="import" hidden>
-      <p class="dim mb-3" style="font-size:13px">For filling in the past. In Health, tap your picture →
-        <strong>Export All Health Data</strong>, unzip it, and hand over <code>export.xml</code>.
-        Big exports take a moment.</p>
+    <div data-ahpane="import" ${tab === 'import' ? '' : 'hidden'}>
+      <p class="ah__lede">For filling in days gone by. In <strong>Health</strong>, tap your picture →
+        <strong>Export All Health Data</strong>, unzip it, and hand over <code>export.xml</code>.</p>
       <div class="row gap-2 row--wrap mb-4">
         <button class="btn btn--primary" data-ah-file>${icon('upload')}Choose export.xml</button>
-        <button class="btn" data-ah-export>${icon('download')}Export my health data</button>
+        <button class="btn" data-ah-export>${icon('download')}Save my health data</button>
       </div>
-      <label class="ah__field"><span>Or paste one day per line — <code>date, steps, sleep</code></span></label>
-      <textarea class="textarea mono" id="ahPaste" rows="5" placeholder="2026-09-15, 9120, 7.25
+      <label class="ah__field"><span>Or type one day per line — <code>date, steps, hours slept</code></span></label>
+      <textarea class="textarea mono" id="ahPaste" rows="4" placeholder="2026-09-15, 9120, 7.25
 2026-09-16, 10233, 6.5"></textarea>
       <button class="btn mt-3" data-ah-paste>${icon('check')}Add these days</button>
+    </div>
+
+    <div class="ah__check">
+      <button class="btn btn--block" data-ah-diagnose>${icon('shield')}Something is not working — check my setup</button>
+      <div id="ahResult"></div>
     </div>
   </div>`;
 
@@ -452,7 +470,7 @@ function wireBridge(root) {
     try {
       await healthKey({ create: true });
       store.setSetting('health.linked', true);
-      modal.close(); openBridge();
+      modal.close(); openBridge('auto');
     } catch (err) { toast(healthError(err), 'bad'); }
   });
 
@@ -461,7 +479,7 @@ function wireBridge(root) {
       title: 'Make a new key?', danger: true, confirmLabel: 'New key',
       message: 'The old key stops working straight away, so update the Shortcut on your phone afterwards.',
     })) return;
-    try { await healthKey({ rotate: true }); modal.close(); openBridge(); toast('New key made', 'ok'); }
+    try { await healthKey({ rotate: true }); modal.close(); openBridge('auto'); toast('New key made', 'ok'); }
     catch (err) { toast(healthError(err), 'bad'); }
   });
 
@@ -473,11 +491,35 @@ function wireBridge(root) {
       await cloudPush(key, { date: today(), steps: 1234 });
       const res = await syncAppleHealth({ quiet: false });
       toast(res?.days ? 'It works — a test reading arrived.' : 'Sent, but nothing came back.', res?.days ? 'ok' : 'warn');
-    } catch (err) { toast(healthError(err), 'bad'); }
+    } catch (err) {
+      toast(healthError(err), 'bad', { duration: 7000 });
+      root.querySelector('[data-ah-diagnose]')?.click();
+    }
     finally { el.disabled = false; }
   });
 
   on(root, 'click', '[data-ah-sync]', () => syncAppleHealth({ quiet: false }));
+
+  on(root, 'click', '[data-ah-diagnose]', async (e, el) => {
+    const out = root.querySelector('#ahResult');
+    el.disabled = true;
+    out.innerHTML = `<p class="dim mt-3" style="font-size:13px">Checking…</p>`;
+    let steps = [];
+    try { steps = await diagnose(); }
+    catch (err) { steps = [{ label: 'The check itself failed', ok: false, detail: String(err?.message || err) }]; }
+    const bad = steps.find(x => !x.ok);
+    out.innerHTML = `
+      <ul class="ah__diag mt-3">
+        ${steps.map(x => `<li class="${x.ok ? 'is-ok' : 'is-bad'}">
+          ${icon(x.ok ? 'check' : 'x', 'ic ic--sm')}
+          <div><strong>${esc(x.label)}</strong>
+          ${x.detail ? `<small>${esc(x.detail)}</small>` : ''}</div></li>`).join('')}
+      </ul>
+      ${bad?.fix ? `<div class="callout callout--warn mt-3" style="padding:12px 14px">
+        <p style="font-size:13px"><strong>Do this next:</strong> ${bad.fix}</p></div>`
+        : `<p class="dim mt-3" style="font-size:13px">Everything checks out.</p>`}`;
+    el.disabled = false;
+  });
 
   on(root, 'click', '[data-ah-file]', async () => {
     const file = await pickFile('.xml,text/xml,application/xml');

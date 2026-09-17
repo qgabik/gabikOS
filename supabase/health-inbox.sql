@@ -126,5 +126,9 @@ revoke all on function public.gabikos_health_push(
 grant execute on function public.gabikos_health_push(
   text, date, integer, integer, text, text, integer, numeric, integer, integer) to anon, authenticated;
 
-/* ─── Keep old readings from piling up forever ─── */
 create index if not exists gabikos_health_inbox_day_idx on public.gabikos_health_inbox (user_id, day desc);
+
+-- The API layer keeps its own cache of what exists. Without this it can
+-- answer "could not find the function" for a minute after you run this
+-- file, which looks exactly like the file not having worked.
+notify pgrst, 'reload schema';

@@ -839,3 +839,18 @@
   .hring__meta .dim{font-size:11.5px}
   .night__big{font-size:26px}
 }
+
+/* ─── Apple Health: guidance and the setup checker ─── */
+.ah__lede{font-size:13px;line-height:1.65;color:var(--text-2);margin-bottom:16px}
+.ah__tip{display:flex;gap:8px;align-items:flex-start;margin-top:14px;padding:11px 13px;
+  border-radius:var(--r-sm);background:var(--accent-soft);font-size:12.5px;line-height:1.6;
+  color:var(--text-2)}
+.ah__tip .ic{flex:none;margin-top:2px;color:var(--accent)}
+.ah__steps:first-child{margin-top:0;padding-top:0;border-top:0}
+.ah__check{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.ah__diag{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:9px}
+.ah__diag li{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.5}
+.ah__diag li.is-ok .ic{color:var(--ok);flex:none;margin-top:2px}
+.ah__diag li.is-bad .ic{color:var(--bad);flex:none;margin-top:2px}
+.ah__diag li.is-bad strong{color:var(--text)}
+.ah__diag small{display:block;color:var(--text-3);font-size:11.8px;margin-top:2px}
