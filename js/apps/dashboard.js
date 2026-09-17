@@ -15,6 +15,7 @@ import { hasEntryToday, writeEntry, moodOf, entryFor } from './journal.js';
 import { activeGoals, goalProgress } from './goals.js';
 import { metricFor, addWater } from './health.js';
 import { monthNet, monthExpense, money } from './finance.js';
+import { currentAndNext, todayLessons, subjectOf, parityLabel, weekParity } from './school.js';
 import { sparkline } from '../core/charts.js';
 
 const QUOTES = [
@@ -142,6 +143,30 @@ registerView('dashboard', {
       </div>
     </div>`;
 
+    /* ── school ── */
+    const { current, next: nextLesson, all: dayLessons } = currentAndNext();
+    const schoolCard = dayLessons.length ? `<div class="card">
+      <div class="card__head">${icon('graduation')}<h3>School today</h3>
+        <span class="chip">${plural(dayLessons.length, 'lesson')}</span>
+        <button class="btn btn--ghost btn--sm" data-go="school">${icon('arrowRight', 'ic ic--sm')}</button></div>
+      <div class="card__body card__body--flush">
+        ${[current && { l: current, tag: 'Now' }, nextLesson && { l: nextLesson, tag: 'Next' }]
+          .filter(Boolean).map(({ l, tag }) => {
+            const sub = subjectOf(l.subjectId);
+            return `<div class="nextlesson" style="--sc:${esc(sub?.color || 'var(--accent)')}">
+              <span class="nextlesson__badge">${esc(sub?.short || '?')}</span>
+              <span class="nextlesson__txt">
+                <strong>${esc(sub?.name || 'Lesson')}</strong>
+                <small>${tag} · ${esc(l.startStr)}–${esc(l.endStr)}${l.room || sub?.room ? ` · ${esc(l.room || sub.room)}` : ''}</small>
+              </span>
+              <span class="nextlesson__when">${esc(tag === 'Now' ? 'until ' + l.endStr : l.startStr)}</span>
+            </div>`;
+          }).join('') || `<div class="nextlesson"><span class="nextlesson__txt">
+              <strong>Lessons are done for today</strong>
+              <small>${plural(dayLessons.length, 'lesson')} finished</small></span></div>`}
+      </div>
+    </div>` : '';
+
     /* ── schedule ── */
     const events = upcoming(5);
     const scheduleCard = `<div class="card">
@@ -226,7 +251,7 @@ registerView('dashboard', {
     return hero + stats + `
       <div class="dash">
         <div class="dash__col">${taskCard}${habitCard}${activityCard}</div>
-        <div class="dash__col">${scheduleCard}${journalCard}${goalCard}${moneyCard}${quoteCard}</div>
+        <div class="dash__col">${schoolCard}${scheduleCard}${journalCard}${goalCard}${moneyCard}${quoteCard}</div>
       </div>`;
   },
 

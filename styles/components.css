@@ -244,7 +244,7 @@ button.chip:hover{background:var(--active);color:var(--text)}
 .toast--bad .toast__ic{background:var(--bad-soft);color:var(--bad)}
 .toast--info .toast__ic{background:var(--info-soft);color:var(--info)}
 .toast--warn .toast__ic{background:var(--warn-soft);color:var(--warn)}
-.toast span{flex:1;min-width:0}
+.toast>span:not(.toast__ic){flex:1;min-width:0}
 .toast button{font-size:12.4px;font-weight:650;color:var(--accent);flex:none}
 @media (max-width:560px){.toasts{bottom:14px;right:12px;left:12px;align-items:stretch;max-width:none}}
 

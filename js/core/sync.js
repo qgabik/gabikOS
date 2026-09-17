@@ -22,6 +22,7 @@ export const SLICES = {
   notes:   ['notes'],
   journal: ['journal'],
   plan:    ['events', 'goals'],
+  school:  ['subjects', 'lessons'],
   health:  ['workouts', 'metrics', 'meals'],
   money:   ['transactions', 'budgets'],
   custom:  ['collections', 'records'],

@@ -128,6 +128,7 @@ export function watchSystemTheme() {
 export const VIEW_HUES = {
   dashboard: '#8b6dff', tasks: '#5b8def', habits: '#3fc98d', focus: '#f2726f',
   calendar: '#3fb6e8', notes: '#e8a33d', journal: '#e070b0', goals: '#2fb8b8',
+  school: '#f0913d',
   health: '#4fc38a', finance: '#c9a227', builder: '#a07cff', settings: '#8a93a6',
 };
 export const hueFor = (id, fallback = 'var(--accent)') => VIEW_HUES[id] || fallback;

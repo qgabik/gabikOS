@@ -16,6 +16,7 @@ import './apps/tasks.js';
 import './apps/habits.js';
 import './apps/focus.js';
 import './apps/calendar.js';
+import './apps/school.js';
 import './apps/notes.js';
 import './apps/journal.js';
 import './apps/goals.js';
@@ -28,6 +29,7 @@ import { newTask, newProject } from './apps/tasks.js';
 import { newHabit } from './apps/habits.js';
 import { newNote } from './apps/notes.js';
 import { newEvent } from './apps/calendar.js';
+import { newLesson } from './apps/school.js';
 import { newGoal } from './apps/goals.js';
 import { newWorkout } from './apps/health.js';
 import { newTransaction } from './apps/finance.js';
@@ -106,6 +108,7 @@ function buildCommands() {
     { title: "Write today's journal", icon: 'journal', sub: 'Reflect on your day', meta: 'create', keywords: 'diary mood reflect', run: () => writeEntry() },
     { title: 'New habit', icon: 'flame', sub: 'Start a streak', meta: 'create', keywords: 'routine streak daily', run: newHabit },
     { title: 'New event', icon: 'calendar', sub: 'Put it in the diary', meta: 'create', keywords: 'schedule appointment', run: () => newEvent({ date: today() }) },
+    { title: 'Add a lesson', icon: 'graduation', sub: 'Build your timetable', meta: 'create', keywords: 'school timetable rozvrh lesson class subject', run: () => newLesson() },
     { title: 'New goal', icon: 'target', sub: 'Something bigger', meta: 'create', keywords: 'objective ambition', run: newGoal },
     { title: 'Log a workout', icon: 'dumbbell', sub: 'Training session', meta: 'create', keywords: 'gym exercise fitness', run: () => newWorkout() },
     { title: 'Record a transaction', icon: 'wallet', sub: 'Money in or out', meta: 'create', keywords: 'expense income spend', run: () => newTransaction({ date: today() }) },
@@ -126,6 +129,7 @@ async function quickCreate() {
     ['Note', 'note', () => newNote()],
     ['Habit', 'flame', newHabit],
     ['Event', 'calendar', () => newEvent({ date: today() })],
+    ['Lesson', 'graduation', () => newLesson()],
     ['Journal entry', 'journal', () => writeEntry()],
     ['Goal', 'target', newGoal],
     ['Workout', 'dumbbell', () => newWorkout()],
@@ -155,7 +159,7 @@ async function quickCreate() {
 /* ─── Keyboard ─── */
 let gPressed = false, gTimer = null;
 const GOTO = { d: 'dashboard', t: 'tasks', h: 'habits', n: 'notes', f: 'focus', c: 'calendar',
-  j: 'journal', g: 'goals', m: 'finance', b: 'builder', s: 'settings', l: 'health' };
+  j: 'journal', g: 'goals', m: 'finance', b: 'builder', s: 'settings', l: 'health', k: 'school' };
 
 function initKeys() {
   document.addEventListener('keydown', e => {

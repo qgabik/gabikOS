@@ -82,6 +82,7 @@ home indicator when it runs installed.
 | **Goals** | Outcomes with milestones, progress rings and deadlines |
 | **Health** | Workouts, weight, sleep, steps, hydration — with trend charts |
 | **Money** | Income and expenses, budgets, category donut, six-month trend |
+| **School** | Timetable with numbered periods and alternating weeks, subjects, next-lesson card |
 | **Builder** | **Create your own trackers** — see below |
 | **Settings** | Six themes, accent colour, reading comfort, sync status, export / import |
 
@@ -98,6 +99,25 @@ blue, habits green, money gold — so the sidebar reads as a set of places rathe
 
 Under **Settings → Appearance** there is also a text-size slider (85–130%, scaling the whole interface)
 and compact / normal / roomy row spacing.
+
+## School timetables
+
+Built for how Czech schools actually work: numbered periods with their real times, odd/even week
+alternation, subject abbreviations and rooms.
+
+Three ways to fill it:
+
+1. **Import an `.ics` calendar export** — the best result. Most school systems (ŠkolaOnline, Bakaláři)
+   can publish your timetable as a calendar file. The importer collapses however many weeks the file
+   covers into one representative week, works out which lessons run on alternating weeks from how often
+   they appear, pulls teachers out of the description, drops all-day entries like holidays, and snaps
+   each start time to your nearest period. You review and untick before anything is saved.
+2. **Paste it** — copy the timetable off the page; it reads day, period, subject and room as best it can.
+3. **Type it** — click any empty square. A full week takes a few minutes.
+
+**There is no live link to ŠkolaOnline, and there cannot be one.** A static site has no server to hold a
+login, browsers block one site from reading another's private pages, and there is no public API. An
+export is a snapshot — when the timetable changes, export again and tick *Replace my current timetable*.
 
 ## The Builder
 
