@@ -662,3 +662,14 @@
 .ai-reading__spin .spinner{width:24px;height:24px;border-width:2.5px}
 .ai-reading strong{font-size:14.6px}
 .ai-reading p{font-size:12.8px;max-width:300px;line-height:1.55}
+
+/* a lesson that runs across several periods */
+.tt__cell--block{vertical-align:stretch}
+.tt__lesson.is-block{justify-content:flex-start;padding-top:9px}
+.tt__span{font-size:9.6px;font-style:normal;font-weight:650;color:var(--text-3);
+  margin-top:auto;padding-top:4px;opacity:.85}
+.callout-inline{align-items:flex-start;padding:11px 13px;border-radius:var(--r-sm);
+  background:var(--accent-soft);border:1px solid var(--accent-line);margin-bottom:14px}
+.callout-inline .check__box{margin-top:2px}
+.callout-inline small{font-size:11.6px;line-height:1.5;display:block;margin-top:3px}
+.tt__ab--both{background:var(--text-3);font-size:10px;line-height:1;padding:2px 4px}

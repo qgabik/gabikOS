@@ -111,7 +111,11 @@ Four ways to fill it:
    filled in for you. Rows it cannot read are dropped rather than guessed, and nothing is saved until you
    have reviewed the list. Needs a host that can reach Claude, so this appears on the claude.ai copy and
    stays hidden elsewhere.
-2. **Import an `.ics` calendar export** — the most exact. Most school systems (ŠkolaOnline, Bakaláři)
+2. **Import an `.ics` calendar export** — the most exact. Block lessons that run across several periods
+   (practical training, workshops) come in as one merged cell. If the file's lesson times do not match the
+   ones configured, it offers to take the file's — so a school whose periods start at 09:50 rather than
+   10:00 works without touching settings. Where an export prints a subject's own abbreviation it is kept
+   verbatim, and two subjects can never end up sharing a code. Most school systems (ŠkolaOnline, Bakaláři)
    can publish your timetable as a calendar file. The importer collapses however many weeks the file
    covers into one representative week, works out which lessons run on alternating weeks from how often
    they appear, pulls teachers out of the description, drops all-day entries like holidays, and snaps

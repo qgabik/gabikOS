@@ -104,6 +104,7 @@ export function toWeeklySlots(events, { minOccurrences = 1 } = {}) {
         day, start, end, title,
         room: (e.location || '').trim(),
         teacher: teacherFrom(e),
+        short: shortFrom(e),
         count: 0,
         dates: [],
       });
@@ -113,6 +114,7 @@ export function toWeeklySlots(events, { minOccurrences = 1 } = {}) {
     slot.dates.push(e.start);
     if (!slot.room && e.location) slot.room = e.location.trim();
     if (!slot.teacher) slot.teacher = teacherFrom(e);
+    if (!slot.short) slot.short = shortFrom(e);
   }
 
   const slots = [...byKey.values()].filter(s => s.count >= minOccurrences);
@@ -124,6 +126,13 @@ export function toWeeklySlots(events, { minOccurrences = 1 } = {}) {
     s.weekParity = s.everyWeek ? 'all' : isoWeek(s.dates[0]) % 2 ? 'a' : 'b';
   }
   return slots.sort((a, b) => (a.day - b.day) || a.start.localeCompare(b.start));
+}
+
+/** Some exports print the subject's own abbreviation; prefer it over a guess. */
+function shortFrom(e) {
+  const d = (e.description || '').trim();
+  const m = d.match(/(?:zkratka|zkr|short|code|k[óo]d)\s*[:\-]\s*([^\n;]+)/i);
+  return m ? m[1].trim().slice(0, 8) : '';
 }
 
 /** Teachers hide in different fields depending on the system. */

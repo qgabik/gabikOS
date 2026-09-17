@@ -53,10 +53,15 @@ export const todayLessons = () => lessonsOn(new Date().getDay());
 export function currentAndNext() {
   const list = todayLessons();
   const now = nowMins();
+  const ps = periods();
   const timed = list.map(l => {
-    const p = periods().find(x => Number(x.n) === Number(l.period));
-    return { ...l, start: minutes(p?.start), end: minutes(p?.end), startStr: p?.start, endStr: p?.end };
-  }).filter(l => !isNaN(l.start));
+    const p = ps.find(x => Number(x.n) === Number(l.period));
+    if (!p) return null;
+    const span = Math.max(1, Number(l.span) || 1);
+    const idx = ps.findIndex(x => Number(x.n) === Number(p.n));
+    const last = ps[Math.min(idx + span - 1, ps.length - 1)] || p;
+    return { ...l, span, start: minutes(p.start), end: minutes(last.end), startStr: p.start, endStr: last.end };
+  }).filter(l => l && !isNaN(l.start));
   const current = timed.find(l => now >= l.start && now < l.end) || null;
   const next = timed.find(l => l.start > now) || null;
   return { current, next, all: timed };
@@ -71,17 +76,28 @@ function ensureSubject(name, { short, teacher, room, color } = {}) {
     const patch = {};
     if (teacher && !found.teacher) patch.teacher = teacher;
     if (room && !found.room) patch.room = room;
+    if (short && !found.shortLocked) { patch.short = uniqueShort(short, found.id); patch.shortLocked = true; }
     if (Object.keys(patch).length) store.update('subjects', found.id, patch);
     return found.id;
   }
   const rec = store.add('subjects', {
     name: clean,
-    short: short || abbreviate(clean),
+    short: uniqueShort(short || abbreviate(clean)),
+    shortLocked: !!short,
     teacher: teacher || '',
     room: room || '',
     color: color || colorFor(clean),
   });
   return rec.id;
+}
+
+/** Two subjects must never share a code — Ma and Mat are not one subject. */
+function uniqueShort(code, selfId = null) {
+  const taken = new Set(subjects().filter(s => s.id !== selfId).map(s => String(s.short || '').toLowerCase()));
+  const base = String(code || '?').trim() || '?';
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let i = 2; i < 40; i++) if (!taken.has(`${base}${i}`.toLowerCase())) return `${base}${i}`;
+  return base;
 }
 
 /** "Český jazyk a literatura" → "ČJL" */
@@ -102,6 +118,8 @@ const lessonFields = (l = {}) => [
     options: periods().map(p => ({ value: p.n, label: `${p.n}. — ${p.start}–${p.end}` })) },
   { name: 'teacher', label: 'Teacher', type: 'text', half: true, value: l.teacher },
   { name: 'room', label: 'Room', type: 'text', half: true, value: l.room },
+  { name: 'span', label: 'Length', type: 'select', half: true, value: l.span || 1,
+    options: [1,2,3,4,5,6,7,8].map(n => ({ value: n, label: n === 1 ? 'One period' : `${n} periods in a row` })) },
   { name: 'week', label: 'Which weeks', type: 'select', value: l.week || 'all',
     options: [{ value: 'all', label: 'Every week' }, { value: 'a', label: 'Odd weeks only (A)' }, { value: 'b', label: 'Even weeks only (B)' }] },
   { name: 'note', label: 'Note', type: 'text', value: l.note, placeholder: 'optional' },
@@ -112,7 +130,7 @@ export async function newLesson(preset = {}) {
   if (!v) return;
   const subjectId = ensureSubject(v.subject, { teacher: v.teacher, room: v.room });
   store.add('lessons', { day: Number(v.day), period: Number(v.period), subjectId,
-    teacher: v.teacher, room: v.room, week: v.week, note: v.note });
+    teacher: v.teacher, room: v.room, week: v.week, note: v.note, span: Number(v.span) || 1 });
   toast('Lesson added', 'ok');
   render();
 }
@@ -135,7 +153,7 @@ async function editLesson(id) {
   if (!v) return;
   const subjectId = ensureSubject(v.subject, { teacher: v.teacher, room: v.room });
   store.update('lessons', id, { day: Number(v.day), period: Number(v.period), subjectId,
-    teacher: v.teacher, room: v.room, week: v.week, note: v.note });
+    teacher: v.teacher, room: v.room, week: v.week, note: v.note, span: Number(v.span) || 1 });
   toast('Lesson updated', 'ok');
   render();
 }
@@ -155,11 +173,15 @@ function applySlots(slots, { replace }) {
       if (diff < bestDiff) { bestDiff = diff; best = p; }
     }
     if (!best || bestDiff > 20) { skipped++; continue; }
-    const subjectId = ensureSubject(slot.title, { teacher: slot.teacher, room: slot.room });
+    const subjectId = ensureSubject(slot.title, { teacher: slot.teacher, room: slot.room, short: slot.short });
     const dup = lessons().some(l => l.day === slot.day && Number(l.period) === Number(best.n) && l.subjectId === subjectId);
     if (dup) { skipped++; continue; }
+    // a block lesson covers every period that starts inside it
+    const span = slot.span || (slot.end
+      ? Math.max(1, ps.filter(x => minutes(x.start) >= minutes(best.start) && minutes(x.start) < minutes(slot.end)).length)
+      : 1);
     store.add('lessons', {
-      day: slot.day, period: best.n, subjectId,
+      day: slot.day, period: best.n, subjectId, span,
       teacher: slot.teacher || '', room: slot.room || '',
       week: slot.everyWeek ? 'all' : (slot.weekParity || 'all'),
     });
@@ -186,11 +208,66 @@ async function importICS() {
   previewImport(slots, file.name);
 }
 
+/** Distinct start times in the file that no configured period matches. */
+function unmatchedTimes(slots) {
+  const ps = periods();
+  const seen = new Set();
+  for (const s of slots) {
+    if (!s.start) continue;
+    const t = minutes(s.start);
+    const near = ps.some(p => Math.abs(minutes(p.start) - t) <= 5);
+    if (!near) seen.add(s.start);
+  }
+  return [...seen].sort();
+}
+
+/** Rebuild the period list from the times the file actually uses.
+ *  School periods run consecutively, so the whole numbering follows from
+ *  where the FIRST time lands — matching each time independently would
+ *  mix matched numbers with guessed ones and collide. */
+function periodsFromSlots(slots) {
+  const starts = [...new Set(slots.map(s => s.start).filter(Boolean))].sort((a, b) => minutes(a) - minutes(b));
+  if (!starts.length) return [];
+
+  // A block lesson shares its start with a single-period one but ends much
+  // later, so the SHORTEST duration seen for a start time is the period's.
+  const endFor = new Map();
+  for (const s of slots) {
+    if (!s.start || !s.end || minutes(s.end) <= minutes(s.start)) continue;
+    const cur = endFor.get(s.start);
+    if (cur == null || minutes(s.end) < minutes(cur)) endFor.set(s.start, s.end);
+  }
+
+  const existing = periods();
+  const anchor = existing.find(p => Math.abs(minutes(p.start) - minutes(starts[0])) <= 5);
+  const base = anchor ? Number(anchor.n) : 1;
+
+  const built = starts.map((start, i) => {
+    const n = base + i;
+    const old = existing.find(p => Number(p.n) === n);
+    return { n, start, end: endFor.get(start) || old?.end || '' };
+  });
+
+  // periods the file says nothing about (an early slot, a late one) stay as they were
+  const covered = new Set(built.map(p => p.n));
+  const kept = existing.filter(p => !covered.has(Number(p.n)) &&
+    !built.some(b => Math.abs(minutes(b.start) - minutes(p.start)) <= 5));
+  return [...built, ...kept].sort((a, b) => Number(a.n) - Number(b.n));
+}
+
 function previewImport(slots, source) {
+  const odd = unmatchedTimes(slots);
   modal.open({
     title: 'Review before importing', size: 'wide',
     body: `<p class="dim mb-4" style="font-size:13px">Found <strong>${plural(slots.length, 'lesson')}</strong>
       in ${esc(truncate(source, 40))}. Times are matched to your period numbers. Untick anything you do not want.</p>
+      ${odd.length ? `<label class="check callout-inline">
+        <input type="checkbox" data-adopt checked />
+        <span class="check__box"><svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg></span>
+        <span><strong>Use this file's lesson times</strong><br/>
+          <small class="dim">Your school starts ${plural(odd.length, 'lesson')} at ${esc(odd.slice(0, 3).join(', '))}${odd.length > 3 ? '…' : ''},
+            which the current period times do not cover. Leave this ticked and they will be set from the file.</small></span>
+      </label>` : ''}
       <div class="import-list">
         ${slots.map((s, i) => `<label class="check import-row">
           <input type="checkbox" data-slot="${i}" checked />
@@ -216,8 +293,13 @@ function previewImport(slots, source) {
         const picked = [...body.querySelectorAll('[data-slot]')]
           .filter(c => c.checked).map(c => slots[Number(c.dataset.slot)]);
         const replace = foot.querySelector('[data-replace]').checked;
+        const adopt = body.querySelector('[data-adopt]')?.checked;
         modal.close();
         if (!picked.length) { toast('Nothing selected', 'warn'); return; }
+        if (adopt) {
+          const next = periodsFromSlots(picked);
+          if (next.length) store.setSetting('school.periods', next);
+        }
         applySlots(picked, { replace });
       };
     },
@@ -552,6 +634,12 @@ function weekHtml(parity, cfg) {
   const show = used.length ? ps.filter(p => Number(p.n) >= Math.min(...used.map(u => u.n)) && Number(p.n) <= Math.max(...used.map(u => u.n))) : ps.slice(1, 8);
   const hasAB = lessons().some(l => l.week && l.week !== 'all');
   const todayNum = new Date().getDay();
+  // Labelling every cell "A" on the Week A tab says nothing. Mark the smaller
+  // group instead: in a mostly-alternating timetable the every-week lessons
+  // are the news, and vice versa.
+  const shown = days.flatMap(d => lessonsOn(d.n, parity));
+  const everyCount = shown.filter(l => !l.week || l.week === 'all').length;
+  const markEveryWeek = everyCount <= shown.length - everyCount;
 
   return `${hasAB ? `<div class="filterbar">
       <div class="seg" data-weekpick>
@@ -571,22 +659,43 @@ function weekHtml(parity, cfg) {
           <span class="tt__day">${esc(d.cs)}</span><span class="tt__dayen">${esc(d.en)}</span></th>`).join('')}
       </tr></thead>
       <tbody>
-        ${show.map(p => `<tr>
-          <th class="tt__ph"><strong>${p.n}.</strong><small>${esc(p.start)}<br/>${esc(p.end)}</small></th>
-          ${days.map(d => {
-            const here = lessonsOn(d.n, parity).filter(l => Number(l.period) === Number(p.n));
-            return `<td class="tt__cell ${d.n === todayNum ? 'is-today' : ''}" data-cell="${d.n}-${p.n}">
-              ${here.map(l => {
-                const s = subjectOf(l.subjectId);
-                return `<button class="tt__lesson" data-lesson="${l.id}" style="--sc:${esc(s?.color || 'var(--accent)')}">
-                  <strong>${esc(s?.short || s?.name || '?')}</strong>
-                  <small>${esc(l.room || s?.room || '')}</small>
-                  ${l.week && l.week !== 'all' ? `<i class="tt__ab">${l.week.toUpperCase()}</i>` : ''}
-                </button>`;
-              }).join('') || '<span class="tt__empty">+</span>'}
-            </td>`;
-          }).join('')}
-        </tr>`).join('')}
+        ${(() => {
+          // a block lesson occupies the rows below it, which must not be drawn
+          const covered = new Set();
+          for (const d of days) {
+            for (const l of lessonsOn(d.n, parity)) {
+              const span = Math.max(1, Number(l.span) || 1);
+              const from = show.findIndex(x => Number(x.n) === Number(l.period));
+              if (from < 0) continue;
+              for (let k = 1; k < span && from + k < show.length; k++) covered.add(`${d.n}-${show[from + k].n}`);
+            }
+          }
+          return show.map(p => `<tr>
+            <th class="tt__ph"><strong>${p.n}.</strong><small>${esc(p.start)}<br/>${esc(p.end)}</small></th>
+            ${days.map(d => {
+              if (covered.has(`${d.n}-${p.n}`)) return '';
+              const here = lessonsOn(d.n, parity).filter(l => Number(l.period) === Number(p.n));
+              const span = Math.max(1, ...here.map(l => Number(l.span) || 1));
+              const rows = Math.min(span, show.length - show.findIndex(x => Number(x.n) === Number(p.n)));
+              return `<td class="tt__cell ${d.n === todayNum ? 'is-today' : ''} ${rows > 1 ? 'tt__cell--block' : ''}"
+                ${rows > 1 ? `rowspan="${rows}"` : ''} data-cell="${d.n}-${p.n}">
+                ${here.map(l => {
+                  const s = subjectOf(l.subjectId);
+                  const n = Math.max(1, Number(l.span) || 1);
+                  return `<button class="tt__lesson ${n > 1 ? 'is-block' : ''}" data-lesson="${l.id}"
+                    style="--sc:${esc(s?.color || 'var(--accent)')}">
+                    <strong>${esc(s?.short || s?.name || '?')}</strong>
+                    <small>${esc(l.room || s?.room || '')}</small>
+                    ${n > 1 ? `<em class="tt__span">${n} periods</em>` : ''}
+                    ${hasAB && (markEveryWeek
+                      ? (!l.week || l.week === 'all') && '<i class="tt__ab tt__ab--both" title="Runs in both weeks">=</i>'
+                      : l.week && l.week !== 'all' && `<i class="tt__ab">${l.week.toUpperCase()}</i>`) || ''}
+                  </button>`;
+                }).join('') || '<span class="tt__empty">+</span>'}
+              </td>`;
+            }).join('')}
+          </tr>`).join('');
+        })()}
       </tbody>
     </table></div></div>`;
 }
