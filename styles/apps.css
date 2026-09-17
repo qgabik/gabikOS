@@ -738,3 +738,45 @@
   .card__body{padding:15px}
   .section-title{margin:20px 0 11px}
 }
+
+/* ─── Free time between lessons ─── */
+.freerow{display:flex;align-items:center;gap:11px;padding:10px 14px;position:relative;
+  border-bottom:1px solid var(--line);color:var(--text-3)}
+.freerow:last-child{border-bottom:0}
+.freerow::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:repeating-linear-gradient(180deg,var(--text-3) 0 4px,transparent 4px 9px);opacity:.5}
+.freerow.is-now{background:var(--warn-soft)}
+.freerow.is-now .freerow__body strong{color:var(--warn)}
+.freerow__time{display:flex;flex-direction:column;align-items:center;min-width:46px;flex:none;line-height:1.25}
+.freerow__time strong{font-size:12.6px;font-weight:650;font-variant-numeric:tabular-nums}
+.freerow__time small{font-size:10.4px;opacity:.75;font-variant-numeric:tabular-nums}
+.freerow__body{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.35}
+.freerow__body strong{font-size:13.2px;font-weight:600;color:var(--text-2)}
+.freerow__body small{font-size:11.4px}
+.freerow .ic{flex:none;opacity:.6}
+
+.dayfacts{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:12px;
+  font-size:12.2px;color:var(--text-2);padding:0 2px}
+.dayfacts span{display:flex;align-items:center;gap:5px}
+.dayfacts .ic{color:var(--text-3)}
+.dayfacts__free{color:var(--warn);font-weight:600}
+.dayfacts__free .ic{color:var(--warn)}
+
+/* a free slot in the week grid */
+.tt__cell.is-free{background:repeating-linear-gradient(135deg,
+  transparent 0 7px,var(--hover) 7px 14px)}
+.tt__free{display:grid;place-items:center;height:100%;font-size:9.8px;font-weight:650;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);opacity:.7}
+
+/* ─── Lesson-times editor ─── */
+.periodgrid{display:flex;flex-direction:column;gap:7px;max-height:52vh;overflow-y:auto;padding-right:3px}
+.periodgrid__head{display:grid;grid-template-columns:46px 1fr 1fr 34px;gap:9px;align-items:center;
+  font-size:10.6px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);
+  padding:0 2px 3px}
+.periodrow{display:grid;grid-template-columns:46px 1fr 1fr 34px;gap:9px;align-items:center}
+.periodrow__n{font-size:13.4px;font-weight:700;color:var(--text-2);text-align:center}
+.periodrow .input{padding:7px 9px;font-size:13px}
+@media (max-width:560px){
+  .periodgrid__head,.periodrow{grid-template-columns:38px 1fr 1fr 32px;gap:6px}
+  .periodrow .input{padding:7px 6px;font-size:12.4px}
+}

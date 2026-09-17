@@ -88,7 +88,7 @@ home indicator when it runs installed.
 | **Goals** | Outcomes with milestones, progress rings and deadlines |
 | **Health** | Workouts, weight, sleep, steps, hydration — with trend charts |
 | **Money** | Income and expenses, budgets, category donut, six-month trend |
-| **School** | Timetable with numbered periods and alternating weeks, subjects, next-lesson card |
+| **School** | Timetable with numbered periods, alternating weeks, block lessons, free-period gaps |
 | **Builder** | **Create your own trackers** — see below |
 | **Settings** | Six themes, accent colour, reading comfort, sync status, export / import |
 
@@ -107,6 +107,13 @@ Under **Settings → Appearance** there is also a text-size slider (85–130%, s
 and compact / normal / roomy row spacing.
 
 ## School timetables
+
+Free periods are shown, not left to be inferred from an empty row. A whole empty period between two
+lessons appears in the day as its own block — how long, which periods, what time it runs — and the week
+grid hatches those slots. A five-minute changeover is not free time and is not marked as any; only a
+genuinely empty period counts. The day also carries a one-line summary: first bell to last, how many
+periods, how much of it is free.
+
 
 Built for how Czech schools actually work: numbered periods with their real times, odd/even week
 alternation, subject abbreviations and rooms.

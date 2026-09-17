@@ -9,16 +9,18 @@ import { store, S, settings } from '../core/store.js';
 import { registerView, navigate, render, params } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile, modal, qs } from '../core/ui.js';
-import { esc, uid, today, iso, parseISO, dayName, plural, by, colorFor, pickFile, truncate } from '../core/util.js';
+import { esc, uid, today, iso, parseISO, dayName, plural, by, colorFor, pickFile, truncate, fmtMins } from '../core/util.js';
 import { parseICS, toWeeklySlots, isoWeek } from '../core/ics.js';
 
 /* ─── Period times: the layout most Czech schools use ─── */
 export const DEFAULT_PERIODS = [
-  { n: 0, start: '07:05', end: '07:50' }, { n: 1, start: '08:00', end: '08:45' },
-  { n: 2, start: '08:55', end: '09:40' }, { n: 3, start: '10:00', end: '10:45' },
-  { n: 4, start: '10:55', end: '11:40' }, { n: 5, start: '11:50', end: '12:35' },
-  { n: 6, start: '12:45', end: '13:30' }, { n: 7, start: '13:40', end: '14:25' },
-  { n: 8, start: '14:35', end: '15:20' }, { n: 9, start: '15:30', end: '16:15' },
+  { n: 0,  start: '07:10', end: '07:55' }, { n: 1,  start: '08:00', end: '08:45' },
+  { n: 2,  start: '08:55', end: '09:40' }, { n: 3,  start: '09:50', end: '10:35' },
+  { n: 4,  start: '10:45', end: '11:30' }, { n: 5,  start: '11:40', end: '12:25' },
+  { n: 6,  start: '12:30', end: '13:15' }, { n: 7,  start: '13:20', end: '14:05' },
+  { n: 8,  start: '14:10', end: '14:55' }, { n: 9,  start: '15:00', end: '15:45' },
+  { n: 10, start: '15:50', end: '16:35' }, { n: 11, start: '16:50', end: '17:35' },
+  { n: 12, start: '17:40', end: '18:25' }, { n: 13, start: '18:30', end: '19:15' },
 ];
 export const periods = () => settings().school?.periods?.length ? settings().school.periods : DEFAULT_PERIODS;
 export const schoolCfg = () => ({ weekMode: 'single', days: 5, ...(settings().school || {}) });
@@ -65,6 +67,59 @@ export function currentAndNext() {
   const current = timed.find(l => now >= l.start && now < l.end) || null;
   const next = timed.find(l => l.start > now) || null;
   return { current, next, all: timed };
+}
+
+/**
+ * A day as you actually live it: lessons, and the empty periods between
+ * them. A five-minute changeover is not free time; a whole empty period
+ * is, and that is the thing worth seeing.
+ */
+export function dayTimeline(day, parity = weekParity()) {
+  const ps = periods();
+  const idxOf = n => ps.findIndex(x => Number(x.n) === Number(n));
+
+  const lessons = lessonsOn(day, parity).map(l => {
+    const from = idxOf(l.period);
+    if (from < 0) return null;
+    const span = Math.max(1, Number(l.span) || 1);
+    const to = Math.min(from + span - 1, ps.length - 1);
+    return { ...l, span, fromIdx: from, toIdx: to,
+      startStr: ps[from].start, endStr: ps[to].end,
+      start: minutes(ps[from].start), end: minutes(ps[to].end) };
+  }).filter(Boolean).sort((a, b) => a.fromIdx - b.fromIdx);
+
+  const out = [];
+  lessons.forEach((l, i) => {
+    out.push({ type: 'lesson', ...l });
+    const next = lessons[i + 1];
+    if (!next) return;
+    const gapIdx = [];
+    for (let k = l.toIdx + 1; k < next.fromIdx; k++) gapIdx.push(k);
+    if (!gapIdx.length) return;            // back-to-back, only a changeover
+    const from = ps[gapIdx[0]], to = ps[gapIdx.at(-1)];
+    out.push({
+      type: 'free',
+      startStr: from.start, endStr: to.end,
+      start: minutes(from.start), end: minutes(to.end),
+      mins: minutes(to.end) - minutes(from.start),
+      periodNums: gapIdx.map(k => ps[k].n),
+    });
+  });
+  return out;
+}
+
+/** Totals for a day: lessons, free minutes, first in, last out. */
+export function dayShape(day, parity = weekParity()) {
+  const line = dayTimeline(day, parity);
+  const lessons = line.filter(x => x.type === 'lesson');
+  const frees = line.filter(x => x.type === 'free');
+  return {
+    line, lessons, frees,
+    freeMins: frees.reduce((a, f) => a + f.mins, 0),
+    longest: frees.reduce((a, f) => (f.mins > (a?.mins || 0) ? f : a), null),
+    firstIn: lessons[0]?.startStr || '',
+    lastOut: lessons.at(-1)?.endStr || '',
+  };
 }
 
 /* ─── Subjects ─── */
@@ -490,30 +545,74 @@ function rowsToSlots(rows) {
   return out.sort((a, b) => (a.day - b.day) || a.start.localeCompare(b.start));
 }
 
-/* ─── Periods editor ─── */
+/* ─── Periods editor ───────────────────────────────────────────── */
 async function editPeriods() {
-  const cur = periods();
-  const v = await openForm({
-    title: 'Lesson times', size: 'wide', submitLabel: 'Save times',
-    fields: cur.map(p => ({ name: `p${p.n}`, label: `Period ${p.n}`, type: 'text', half: true,
-      value: `${p.start}-${p.end}`, placeholder: '08:00-08:45' })),
-    validate: vals => {
-      for (const [k, val] of Object.entries(vals)) {
-        if (val && !/^\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}$/.test(val)) return `"${val}" should look like 08:00-08:45`;
-      }
-      return null;
+  const draw = list => `
+    <p class="dim mb-4" style="font-size:13px">These are the times your school rings the bell. Everything
+      else — the timetable, free time, what is on now — is worked out from them.</p>
+    <div class="periodgrid">
+      <div class="periodgrid__head"><span>Period</span><span>Starts</span><span>Ends</span><span></span></div>
+      ${list.map(p => `<div class="periodrow" data-pn="${p.n}">
+        <span class="periodrow__n">${p.n}.</span>
+        <input class="input" type="time" value="${esc(p.start || '')}" data-start="${p.n}" />
+        <input class="input" type="time" value="${esc(p.end || '')}" data-end="${p.n}" />
+        <button class="icon-btn icon-btn--sm icon-btn--danger" data-drop="${p.n}" title="Remove">${icon('trash')}</button>
+      </div>`).join('')}
+    </div>
+    <div class="row gap-2 mt-4 row--wrap">
+      <button class="btn btn--sm" data-add>${icon('plus')}Add a period</button>
+      <button class="btn btn--sm btn--ghost" data-reset>${icon('refresh')}Czech standard</button>
+    </div>`;
+
+  let list = periods().map(p => ({ ...p }));
+
+  const rewire = body => {
+    body.querySelector('[data-add]').onclick = () => {
+      const last = list.at(-1);
+      const n = last ? Number(last.n) + 1 : 1;
+      list.push({ n, start: '', end: '' });
+      body.innerHTML = draw(list); rewire(body);
+    };
+    body.querySelector('[data-reset]').onclick = () => {
+      list = DEFAULT_PERIODS.map(p => ({ ...p }));
+      body.innerHTML = draw(list); rewire(body);
+    };
+    body.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
+      list = list.filter(p => String(p.n) !== b.dataset.drop);
+      body.innerHTML = draw(list); rewire(body);
+    });
+    body.querySelectorAll('[data-start],[data-end]').forEach(inp => {
+      inp.oninput = () => {
+        const n = inp.dataset.start ?? inp.dataset.end;
+        const row = list.find(p => String(p.n) === String(n));
+        if (row) row[inp.dataset.start ? 'start' : 'end'] = inp.value;
+      };
+    });
+  };
+
+  modal.open({
+    title: 'Lesson times', size: 'wide', body: draw(list),
+    footer: `<div class="grow"></div>
+      <button class="btn" data-act="cancel">Cancel</button>
+      <button class="btn btn--primary" data-act="save">Save times</button>`,
+    onMount: (body, foot) => {
+      rewire(body);
+      foot.querySelector('[data-act=cancel]').onclick = () => modal.close();
+      foot.querySelector('[data-act=save]').onclick = () => {
+        const clean = list
+          .filter(p => p.start && p.end)
+          .map(p => ({ n: Number(p.n), start: p.start, end: p.end }))
+          .sort((a, b) => minutes(a.start) - minutes(b.start));
+        if (!clean.length) { toast('Give at least one period a start and an end', 'warn'); return; }
+        const bad = clean.find(p => minutes(p.end) <= minutes(p.start));
+        if (bad) { toast(`Period ${bad.n} ends before it starts`, 'warn'); return; }
+        store.setSetting('school.periods', clean);
+        modal.close();
+        toast('Lesson times saved', 'ok');
+        render();
+      };
     },
   });
-  if (!v) return;
-  const next = cur.map(p => {
-    const raw = v[`p${p.n}`];
-    if (!raw) return p;
-    const [start, end] = raw.split(/\s*[-–]\s*/);
-    return { n: p.n, start: start.trim(), end: end.trim() };
-  });
-  store.setSetting('school.periods', next);
-  toast('Lesson times saved', 'ok');
-  render();
 }
 
 /* ═══ View ═══ */
@@ -529,8 +628,11 @@ registerView('school', {
     const cfg = schoolCfg();
     const ls = lessons();
 
+    const viewing = tab === 'week' && lessons().some(l => l.week && l.week !== 'all')
+      ? `Showing ${parityLabel(parity)}${parity === weekParity() ? ' — this week' : ''}`
+      : parityLabel(weekParity()) + ' this week';
     const head = pageHead('School', ls.length
-      ? `${plural(ls.length, 'lesson')} · ${plural(subjects().length, 'subject')} · ${parityLabel(weekParity())}`
+      ? `${plural(ls.length, 'lesson')} · ${plural(subjects().length, 'subject')} · ${viewing}`
       : 'Your timetable lives here', `
       <div class="seg">
         <button class="${tab === 'week' ? 'is-on' : ''}" data-stab="week">${icon('grid')}<span class="hide-sm">Week</span></button>
@@ -660,18 +762,17 @@ function dayStripHtml(parity, cfg, p) {
   const ps = periods();
   const list = lessonsOn(pick, parity);
 
-  const rows = list.map(l => {
+  const shape = dayShape(pick, parity);
+  const rows = shape.line.map(item => {
+    if (item.type === 'free') return freeRow(item);
+    const l = item;
     const sub = subjectOf(l.subjectId);
-    const span = Math.max(1, Number(l.span) || 1);
-    const from = ps.find(x => Number(x.n) === Number(l.period));
-    const idx = ps.findIndex(x => Number(x.n) === Number(l.period));
-    const to = ps[Math.min(idx + span - 1, ps.length - 1)] || from;
     return `<button class="dayrow" data-lesson="${l.id}" style="--sc:${esc(sub?.color || 'var(--accent)')}">
-      <span class="dayrow__time"><strong>${esc(from?.start || '')}</strong><small>${esc(to?.end || '')}</small></span>
+      <span class="dayrow__time"><strong>${esc(l.startStr)}</strong><small>${esc(l.endStr)}</small></span>
       <span class="dayrow__badge">${esc(sub?.short || '?')}</span>
       <span class="dayrow__main">
         <strong>${esc(sub?.name || 'Lesson')}</strong>
-        <small>${[l.room || sub?.room, l.teacher || sub?.teacher, span > 1 ? `${span} periods` : '']
+        <small>${[l.room || sub?.room, l.teacher || sub?.teacher, l.span > 1 ? `${l.span} periods` : '']
           .filter(Boolean).map(esc).join(' · ') || `Period ${l.period}`}</small>
       </span>
       <span class="dayrow__per">${l.period}.</span>
@@ -688,7 +789,8 @@ function dayStripHtml(parity, cfg, p) {
 
     <div class="daystrip" data-daystrip>
       ${days.map(d => {
-        const n = lessonsOn(d.n, parity).length;
+        // count periods, not records — a four-period block is four periods at school
+        const n = lessonsOn(d.n, parity).reduce((a, l) => a + Math.max(1, Number(l.span) || 1), 0);
         return `<button class="daychip ${d.n === pick ? 'is-on' : ''} ${d.n === todayNum ? 'is-today' : ''}"
           data-day="${d.n}">
           <span class="daychip__d">${esc(d.cs.slice(0, 2))}</span>
@@ -697,11 +799,34 @@ function dayStripHtml(parity, cfg, p) {
       }).join('')}
     </div>
 
+    ${list.length ? `<div class="dayfacts">
+      <span>${icon('clock', 'ic ic--sm')}${esc(shape.firstIn)}–${esc(shape.lastOut)}</span>
+      <span>${icon('graduation', 'ic ic--sm')}${plural(
+        shape.lessons.reduce((a, l) => a + Math.max(1, Number(l.span) || 1), 0), 'period')}</span>
+      ${shape.freeMins ? `<span class="dayfacts__free">${icon('coffee', 'ic ic--sm')}${fmtMins(shape.freeMins)} free</span>`
+        : `<span class="dim">no gaps</span>`}
+    </div>` : ''}
+
     <div class="card" data-swipe>
       ${list.length ? `<div class="dayrows">${rows}</div>`
         : emptyState('coffee', 'Nothing on', `${DAYS.find(d => d.n === pick)?.cs} is free in ${parityLabel(parity).replace('Week ', 'week ')}.`)}
     </div>
     <p class="dim tc mt-3" style="font-size:11.6px">Swipe left or right to change day</p>`;
+}
+
+/** An empty stretch between two lessons. */
+function freeRow(f) {
+  const label = f.periodNums.length === 1
+    ? `Period ${f.periodNums[0]} free`
+    : `Periods ${f.periodNums[0]}–${f.periodNums.at(-1)} free`;
+  return `<div class="freerow">
+    <span class="freerow__time"><strong>${esc(f.startStr)}</strong><small>${esc(f.endStr)}</small></span>
+    <span class="freerow__body">
+      <strong>${esc(fmtMins(f.mins))} free</strong>
+      <small>${esc(label)}</small>
+    </span>
+    ${icon('coffee', 'ic ic--sm')}
+  </div>`;
 }
 
 function weekHtml(parity, cfg) {
@@ -739,6 +864,21 @@ function weekHtml(parity, cfg) {
         ${(() => {
           // a block lesson occupies the rows below it, which must not be drawn
           const covered = new Set();
+          // an empty slot between a day's first and last lesson is free time,
+          // not just an unused row — worth seeing at a glance
+          const free = new Set();
+          for (const d of days) {
+            const busy = new Set();
+            for (const l of lessonsOn(d.n, parity)) {
+              const from = show.findIndex(x => Number(x.n) === Number(l.period));
+              if (from < 0) continue;
+              for (let k = 0; k < Math.max(1, Number(l.span) || 1) && from + k < show.length; k++) busy.add(from + k);
+            }
+            if (busy.size) {
+              const lo = Math.min(...busy), hi = Math.max(...busy);
+              for (let k = lo + 1; k < hi; k++) if (!busy.has(k)) free.add(`${d.n}-${show[k].n}`);
+            }
+          }
           for (const d of days) {
             for (const l of lessonsOn(d.n, parity)) {
               const span = Math.max(1, Number(l.span) || 1);
@@ -754,8 +894,10 @@ function weekHtml(parity, cfg) {
               const here = lessonsOn(d.n, parity).filter(l => Number(l.period) === Number(p.n));
               const span = Math.max(1, ...here.map(l => Number(l.span) || 1));
               const rows = Math.min(span, show.length - show.findIndex(x => Number(x.n) === Number(p.n)));
-              return `<td class="tt__cell ${d.n === todayNum ? 'is-today' : ''} ${rows > 1 ? 'tt__cell--block' : ''}"
-                ${rows > 1 ? `rowspan="${rows}"` : ''} data-cell="${d.n}-${p.n}">
+              const isFree = !here.length && free.has(`${d.n}-${p.n}`);
+              return `<td class="tt__cell ${d.n === todayNum ? 'is-today' : ''} ${rows > 1 ? 'tt__cell--block' : ''} ${isFree ? 'is-free' : ''}"
+                ${rows > 1 ? `rowspan="${rows}"` : ''} data-cell="${d.n}-${p.n}"
+                ${isFree ? `title="Free — ${p.start}–${p.end}"` : ''}>
                 ${here.map(l => {
                   const s = subjectOf(l.subjectId);
                   const n = Math.max(1, Number(l.span) || 1);
@@ -768,7 +910,7 @@ function weekHtml(parity, cfg) {
                       ? (!l.week || l.week === 'all') && '<i class="tt__ab tt__ab--both" title="Runs in both weeks">=</i>'
                       : l.week && l.week !== 'all' && `<i class="tt__ab">${l.week.toUpperCase()}</i>`) || ''}
                   </button>`;
-                }).join('') || '<span class="tt__empty">+</span>'}
+                }).join('') || (isFree ? '<span class="tt__free">free</span>' : '<span class="tt__empty">+</span>')}
               </td>`;
             }).join('')}
           </tr>`).join('');
@@ -780,6 +922,7 @@ function weekHtml(parity, cfg) {
 function todayHtml() {
   const { current, next, all } = currentAndNext();
   const d = new Date();
+  const shape = dayShape(d.getDay());
   if (!all.length) return `<div class="card">${emptyState('coffee', 'No lessons today',
     `${dayName(d)} is clear. Enjoy it.`)}</div>`;
 
@@ -792,24 +935,39 @@ function todayHtml() {
         sub: current ? `until ${current.endStr}` : 'free right now', icon: 'clock', tone: current ? 'ok' : '' })}
       ${statTile({ label: 'Next', value: next ? esc(subjectOf(next.subjectId)?.short || '—') : '—',
         sub: next ? `at ${next.startStr}${next.room ? ` · ${next.room}` : ''}` : 'nothing left today', icon: 'arrowRight', tone: 'warn' })}
-      ${statTile({ label: 'Home at', value: esc(last?.endStr || '—'), sub: `after ${plural(all.length, 'lesson')}`, icon: 'home' })}
+      ${statTile({ label: 'Free today', value: shape.freeMins ? fmtMins(shape.freeMins) : 'none',
+        sub: shape.longest ? `longest ${fmtMins(shape.longest.mins)} at ${shape.longest.startStr}` : `home at ${last?.endStr || '—'}`,
+        icon: 'coffee', tone: shape.freeMins ? 'warn' : '' })}
     </div>
 
     <div class="card"><div class="card__head">${icon('list')}<h3>${esc(dayName(d))}</h3>
       <span class="chip">${esc(parityLabel(weekParity()))}</span></div>
       <div class="list">
-        ${all.map(l => {
-          const s = subjectOf(l.subjectId);
+        ${shape.line.map(item => {
+          if (item.type === 'free') {
+            const soon = nowMins() < item.end && nowMins() >= item.start;
+            return `<div class="list__row freerow ${soon ? 'is-now' : ''}">
+              <span class="freerow__time"><strong>${esc(item.startStr)}</strong><small>${esc(item.endStr)}</small></span>
+              <span class="freerow__body">
+                <strong>${esc(fmtMins(item.mins))} free${soon ? ' — right now' : ''}</strong>
+                <small>${item.periodNums.length === 1 ? `Period ${item.periodNums[0]}`
+                  : `Periods ${item.periodNums[0]}–${item.periodNums.at(-1)}`} · nothing scheduled</small>
+              </span>
+              ${icon('coffee', 'ic ic--sm')}
+            </div>`;
+          }
+          const l = item;
+          const sub = subjectOf(l.subjectId);
           const isNow = current && current.id === l.id;
           const past = nowMins() >= l.end;
           return `<button class="list__row list__row--btn tt__row ${isNow ? 'is-now' : ''} ${past ? 'is-past' : ''}"
-            data-lesson="${l.id}" style="--sc:${esc(s?.color || 'var(--accent)')}">
+            data-lesson="${l.id}" style="--sc:${esc(sub?.color || 'var(--accent)')}">
             <span class="tt__time"><strong>${esc(l.startStr)}</strong><small>${esc(l.endStr)}</small></span>
-            <span class="tt__badge">${esc(s?.short || '?')}</span>
+            <span class="tt__badge">${esc(sub?.short || '?')}</span>
             <div class="list__main">
-              <div class="list__title">${esc(s?.name || 'Lesson')}${isNow ? ' <span class="chip chip--ok">now</span>' : ''}</div>
-              <div class="list__sub">${l.room || s?.room ? `${icon('compass', 'ic ic--sm')}${esc(l.room || s.room)}` : ''}
-                ${l.teacher || s?.teacher ? `· ${esc(l.teacher || s.teacher)}` : ''}
+              <div class="list__title">${esc(sub?.name || 'Lesson')}${isNow ? ' <span class="chip chip--ok">now</span>' : ''}</div>
+              <div class="list__sub">${l.room || sub?.room ? `${icon('compass', 'ic ic--sm')}${esc(l.room || sub.room)}` : ''}
+                ${l.teacher || sub?.teacher ? `· ${esc(l.teacher || sub.teacher)}` : ''}
                 ${l.note ? `· ${esc(l.note)}` : ''}</div>
             </div>
             <span class="dim" style="font-size:11.5px">${l.period}.</span>
