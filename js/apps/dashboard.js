@@ -18,6 +18,7 @@ import { monthNet, monthExpense, money } from './finance.js';
 import { currentAndNext, todayLessons, subjectOf, parityLabel, weekParity } from './school.js';
 import { sparkline } from '../core/charts.js';
 import { sync } from '../core/sync.js';
+import { wireAccount } from './account.js';
 
 const QUOTES = [
   ['You do not rise to the level of your goals. You fall to the level of your systems.', 'James Clear'],
@@ -71,12 +72,12 @@ registerView('dashboard', {
           <span class="stat__icon">${icon('lock')}</span>
           <div class="grow" style="min-width:200px">
             <h3>This copy saves only on this device</h3>
-            <p class="dim mt-2" style="font-size:13px">There is no account here, so what you write on this
-              phone stays on this phone and a computer starts with its own separate copy. To have one
-              system that follows you, open GabikOS from your Claude account — the bar at the top will
-              say <strong>Synced</strong> instead of <em>This device only</em>.</p>
+            <p class="dim mt-2" style="font-size:13px">What you write here stays in this browser, and
+              another device starts empty. Sign in and GabikOS follows you everywhere — it takes a few
+              seconds and the top bar will read <strong>Synced</strong>.</p>
             <div class="row gap-2 mt-3 row--wrap">
-              <button class="btn btn--sm" data-go-data>${icon('download')}Export / import my data</button>
+              <button class="btn btn--primary btn--sm" data-signin>${icon('user')}Sign in or register</button>
+              <button class="btn btn--sm btn--ghost" data-go-data>${icon('download')}Export instead</button>
               <button class="btn btn--sm btn--ghost" data-hide-notice>Got it</button>
             </div>
           </div>
@@ -279,6 +280,7 @@ registerView('dashboard', {
   onMount(root) {
     on(root, 'click', '[data-go]', (e, el) => navigate(el.dataset.go));
     on(root, 'click', '[data-go-data]', () => navigate('settings', { tab: 'data' }));
+    wireAccount(root);
     on(root, 'click', '[data-hide-notice]', () => { store.setSetting('hideLocalNotice', true); render(); });
     on(root, 'click', '[data-toggle]', (e, el) => toggleTask(el.dataset.toggle));
     on(root, 'click', '[data-edit]', (e, el) => import('./tasks.js').then(m => m.editTask(el.dataset.edit)));

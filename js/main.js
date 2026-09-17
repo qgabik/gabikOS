@@ -8,6 +8,7 @@ import { icon } from './core/icons.js';
 import { qs, qsa, on, toast, openForm, modal, confirmDialog, closeMenu } from './core/ui.js';
 import { initPalette, openPalette, closePalette, isOpen as paletteOpen } from './core/palette.js';
 import { initSync, sync, syncLabel, onSyncChange, syncNow, flush } from './core/sync.js';
+import { watchAuth, openAuth, doSignOut } from './apps/account.js';
 import { esc, initials, plural, today, debounce } from './core/util.js';
 
 /* ─── Load every module (each registers its own view) ─── */
@@ -135,6 +136,7 @@ function buildCommands() {
     { title: 'Record a transaction', icon: 'wallet', sub: 'Money in or out', meta: 'create', keywords: 'expense income spend', run: () => newTransaction({ date: today() }) },
     { title: 'Build a new tracker', icon: 'layers', sub: 'Create your own module', meta: 'create', keywords: 'custom collection database make', run: () => newCollection() },
     { title: 'Toggle dark / light', icon: 'sun', sub: 'Switch the theme', meta: 'system', keywords: 'theme dark light appearance', run: () => { toggleTheme(); renderChrome(); toast(`${document.documentElement.dataset.theme === 'light' ? 'Light' : 'Dark'} mode`, 'info', { duration: 1400 }); } },
+    { title: 'Sign in or create an account', icon: 'user', sub: 'Sync across your devices', meta: 'system', keywords: 'login register account sign in sync supabase', run: () => (sync.user ? doSignOut() : openAuth('in')) },
     { title: 'Sync now', icon: 'refresh', sub: 'Push everything to your other devices', meta: 'system', keywords: 'sync cloud devices upload push', run: () => { syncNow() ? toast('Syncing…', 'info') : toast('Sync is not available on this copy', 'warn'); } },
     { title: 'Change theme', icon: 'palette', sub: 'Six palettes, tuned for long sessions', meta: 'system', keywords: 'theme colour color palette dark light appearance', run: () => navigate('settings', { tab: 'appearance' }) },
     { title: 'Export a backup', icon: 'download', sub: 'Download all your data', meta: 'system', keywords: 'backup save json data', run: () => navigate('settings', { tab: 'data' }) },
@@ -315,6 +317,7 @@ async function boot() {
   phone.addEventListener('change', () => render());
   onSyncChange(() => { paintSync(); if (currentView() === 'settings') render(); });
   initSync();                                   // resolves on its own; never blocks first paint
+  watchAuth();                                  // a token expiring elsewhere must not look like a bug
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
   addEventListener('pagehide', flush);
 

@@ -782,3 +782,20 @@
 }
 .localnote h3{font-size:14.6px}
 @media (max-width:640px){ .localnote .stat__icon{display:none} }
+
+/* ─── Sign in / register ─── */
+.auth{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 2px 2px}
+.auth__mark{width:54px;height:54px;border-radius:17px;display:grid;place-items:center;font-size:25px;
+  font-weight:800;color:#fff;letter-spacing:-.04em;margin-bottom:14px;
+  background:linear-gradient(140deg,var(--accent),var(--accent-2));
+  box-shadow:0 12px 30px -10px var(--accent-line),inset 0 1px 0 rgba(255,255,255,.3)}
+.auth h2{font-size:1.24rem}
+.auth>p{font-size:13.2px;line-height:1.55;margin-top:6px;max-width:330px}
+.auth__form{display:flex;flex-direction:column;gap:13px;width:100%;margin-top:20px;text-align:left}
+.auth__err{font-size:12.6px;color:var(--bad);background:var(--bad-soft);border-radius:var(--r-sm);
+  padding:9px 12px;line-height:1.45;margin:0}
+.auth__alt{font-size:13px;color:var(--text-3);margin-top:16px}
+.auth__note{font-size:11.6px;color:var(--text-3);line-height:1.5;margin-top:16px;max-width:330px}
+.linkbtn{color:var(--accent);font-weight:600;font-size:inherit;text-decoration:underline;
+  text-underline-offset:2px}
+.linkbtn:hover{opacity:.82}

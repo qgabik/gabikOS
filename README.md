@@ -16,46 +16,48 @@ Tasks · Habits · Focus · Calendar · Notes · Journal · Goals · Health · M
 
 GabikOS is a single-page web app with no build step and no dependencies. Open `index.html` and it runs.
 
-**Where your data lives depends on where you open it.**
+**Sign in and your data follows you.** GabikOS stores state in your own Supabase account, so the same
+tasks, timetable and habits are there on your phone and your computer. Without an account it still works
+— everything simply stays in that browser.
 
 | Copy | Storage | Syncs between devices? |
 | --- | --- | --- |
-| Hosted on claude.ai | Private per-viewer cloud storage, tied to your account | **Yes** — phone ↔ computer |
-| GitHub Pages, or a local file | This browser's local storage | No — each browser is its own island |
+| Any host, signed in | Your Supabase account | **Yes** |
+| Any host, signed out | This browser's local storage | No |
+| Hosted on claude.ai | Private per-account storage there | **Yes** (no separate sign-in) |
 
-The app detects which it is and tells you in the top bar: *Synced* or *This device only*. Either way
-nobody else can read your data, and either way **Settings → Data → Export everything** writes the whole
-system to one JSON file you can carry anywhere.
+The top bar always says which: *Synced*, *Sign in to sync*, or *This device only*.
 
-## Getting started
+## Setting it up
 
-Open `index.html` in a browser. That's it.
+### 1. Supabase — the database and accounts
 
-For the nicest experience (clean URLs, no file:// restrictions), serve the folder:
+1. Create a free project at [supabase.com](https://supabase.com).
+2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql), **Run**. That creates the
+   state table, turns on row-level security so each row is readable only by the user who owns it, and
+   enables realtime.
+3. **Project Settings → API**: copy the *Project URL* and the *publishable (anon)* key into
+   [`js/config.js`](js/config.js) — or paste them into the app under *Settings → Data → Use my own project*,
+   which keeps them in that browser only.
+4. **Authentication → Providers → Email** is on by default. Turn *Confirm email* off while testing if you
+   would rather not check an inbox each time.
 
-```bash
-npx http-server -p 8080 .     # then open http://localhost:8080
-# or
-python3 -m http.server 8080
-```
+The publishable key belongs in client code: it names the project and nothing more. Row-level security is
+what protects the data, which is why step 2 is not optional.
 
-### Putting it on the web
+### 2. Vercel — the hosting
 
-The repo ships a Pages workflow (`.github/workflows/deploy-pages.yml`), but **no automation can switch
-Pages on for the first time** — `GITHUB_TOKEN` is refused by that API even on a public repo. A repo admin
-turns it on once:
+1. [vercel.com](https://vercel.com) → **Add New → Project** → import this repository.
+2. Framework preset **Other**, no build command, output directory `.` — it is a static site.
+3. Deploy. [`vercel.json`](vercel.json) sets the caching and security headers.
 
-> **[github.com/qgabik/gabikOS/settings/pages](https://github.com/qgabik/gabikOS/settings/pages)**
-> → under **Build and deployment**, set *Source* to **GitHub Actions**
+Add your Vercel URL under Supabase **Authentication → URL Configuration → Redirect URLs**, or the
+confirmation and password-reset emails will bounce people to the wrong place.
 
-That is the whole setup. The workflow deploys on every push from then on, and the site is at
-`https://qgabik.github.io/gabikOS/`.
+### 3. Sign in
 
-*Deploy from a branch → root* works too and skips Actions entirely — the site is already static, so there
-is nothing to build. If you pick that, delete the workflow so it stops reporting failures.
-
-Note that Pages on a **private** repo needs a paid GitHub plan; on a free account the repo must be public.
-Nothing here holds secrets — it is all client-side code, and your data never leaves your browser.
+Open the site, **Settings → Data → Sign in or register**. The first device uploads what is already there;
+every device after that pulls it down.
 
 ## On your phone
 
@@ -189,8 +191,9 @@ its own document. Two reasons, both practical:
 Edits are batched (one write per pause, not per keystroke), pushed when the tab is hidden or closed, and
 every device subscribes to live updates, so a change on one shows up on the other within a second or two.
 
-A device that has never synced always takes the cloud's copy on first connect, whatever its own clock
-says — otherwise a newly set-up phone, whose starter content is stamped "now", would out-rank the real
+Signing in on a device that already held someone else's data wipes it first (after a backup) — otherwise
+the new account inherits it, and worse, uploads it. A device that has never synced always takes the
+cloud's copy on first connect, whatever its own clock says — otherwise a newly set-up phone, whose starter content is stamped "now", would out-rank the real
 data and then overwrite it. Whatever was on the device beforehand is kept under `gabikos:v1:before-sync`
 in case it mattered. Starter content never counts as an edit and is never pushed, and it only ever fills
 collections that are empty.

@@ -1,412 +1,360 @@
 /* ═══════════════════════════════════════════════════════════════
-   GabikOS — Supabase cloud sync
-   LocalStorage remains the offline/local cache.
-   ═══════════════════════════════════════════════════════════════ */
+   GabikOS — cloud sync
 
-import { store, S } from './store.js';
+   Two backends behind one interface:
+     · Supabase — your account, any host, the normal case
+     · Claude db — the claude.ai copy, which cannot reach Supabase
+   Neither available (a plain static host, signed out) → localStorage
+   only, and the app says so.
+
+   State is sharded into domain slices, one row each, because a row is
+   capped and writes are last-writer-wins: separate slices mean a task
+   edited on a phone cannot clobber a note typed on a desktop.
+   ═══════════════════════════════════════════════════════════════ */
+import { store, S, blankState } from './store.js';
 import { render } from './router.js';
-import { getSupabase, getSession } from './supabase.js';
+import { getSupabase, getSession, canUseSupabase } from './supabase.js';
+
+export const SLICES = {
+  core:    ['profile', 'settings', 'activity'],
+  tasks:   ['projects', 'tasks'],
+  habits:  ['habits', 'habitLog'],
+  notes:   ['notes'],
+  journal: ['journal'],
+  plan:    ['events', 'goals'],
+  school:  ['subjects', 'lessons'],
+  health:  ['workouts', 'metrics', 'meals'],
+  money:   ['transactions', 'budgets'],
+  custom:  ['collections', 'records'],
+  library: ['media', 'bookmarks', 'focusSessions'],
+};
+const SLICE_NAMES = Object.keys(SLICES);
+const sliceOfKey = key => SLICE_NAMES.find(s => SLICES[s].includes(key));
+const MAX_BODY = 240_000;
+export const TABLE = 'gabikos_state';
 
 export const sync = {
-  status: 'starting',
+  status: 'starting',    // starting | local | connecting | synced | syncing | error
   detail: '',
+  backend: null,         // 'supabase' | 'claude' | null
+  user: null,            // { id, email } when signed in
+  enabled: false,
   lastPull: 0,
   lastPush: 0,
-  enabled: false,
-  user: null,
-  _applying: false,
+  _p: null,              // the active provider
+  _dirty: new Set(),
+  _chain: new Map(),
   _timer: null,
-  _channel: null,
-  _unsubscribeStore: null,
+  _applying: false,
+  _poll: null,
 };
 
 const listeners = new Set();
-
-export function onSyncChange(fn) {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-}
-
+export function onSyncChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function setStatus(status, detail = '') {
-  sync.status = status;
-  sync.detail = detail;
-
-  for (const fn of listeners) {
-    try {
-      fn(sync);
-    } catch (err) {
-      console.warn('[GabikOS] sync listener failed:', err);
-    }
-  }
+  sync.status = status; sync.detail = detail;
+  for (const fn of listeners) { try { fn(sync); } catch (e) { console.warn('[GabikOS] sync listener:', e); } }
 }
 
-/* ─── Helpers ─── */
+const deviceName = () => {
+  const ua = navigator.userAgent;
+  if (/iPhone|Android.*Mobile/i.test(ua)) return 'Phone';
+  if (/iPad|Tablet|Android/i.test(ua)) return 'Tablet';
+  return 'Computer';
+};
 
-function cloneState() {
-  const state = JSON.parse(JSON.stringify(S()));
+/* ─── local bookkeeping ─── */
+const meta = () => (S().syncMeta ??= { slices: {}, pulled: {}, lastPull: 0 });
+const localStamp = slice => Math.max(0, ...SLICES[slice].map(k => meta().slices?.[k] || 0));
+const hasPulled = slice => !!meta().pulled?.[slice];
+const hasContent = slice =>
+  SLICES[slice].some(k => { const v = S()[k]; return Array.isArray(v) ? v.length : v && Object.keys(v).length; });
 
-  // Local bookkeeping should never be uploaded.
-  delete state.syncMeta;
-
-  return state;
+function stampLocal(slice, ts, pulled = true) {
+  store.commit(s => {
+    s.syncMeta ??= { slices: {}, pulled: {}, lastPull: 0 };
+    s.syncMeta.pulled ??= {};
+    for (const k of SLICES[slice]) s.syncMeta.slices[k] = ts;
+    if (pulled) s.syncMeta.pulled[slice] = true;
+  }, { fromRemote: true, silentHistory: true, key: 'syncMeta' });
 }
 
-function hasUsefulLocalData() {
-  const s = S();
-
-  const arrays = [
-    'projects',
-    'tasks',
-    'habits',
-    'notes',
-    'events',
-    'goals',
-    'subjects',
-    'lessons',
-    'journal',
-    'workouts',
-    'metrics',
-    'meals',
-    'transactions',
-    'budgets',
-    'media',
-    'bookmarks',
-    'focusSessions',
-    'collections',
-  ];
-
-  return (
-    s.profile?.onboarded ||
-    arrays.some(key => Array.isArray(s[key]) && s[key].length > 0) ||
-    Object.keys(s.habitLog || {}).length > 0 ||
-    Object.keys(s.records || {}).length > 0
-  );
-}
-
-function backupBeforeFirstCloudPull() {
+let backedUp = false;
+function backupLocal(tag = 'before-sync') {
+  if (backedUp) return;
+  backedUp = true;
   try {
-    const backupKey = 'gabikos:v1:before-supabase';
-
-    if (localStorage.getItem(backupKey)) return;
-
     const raw = localStorage.getItem('gabikos:v1');
-
-    if (raw && raw.length > 2) {
-      localStorage.setItem(backupKey, raw);
-    }
-  } catch (err) {
-    console.warn('[GabikOS] could not create pre-sync backup:', err);
-  }
+    if (raw && raw.length > 2) localStorage.setItem(`gabikos:v1:${tag}`, raw);
+  } catch { /* storage may refuse; the pull is still correct */ }
 }
 
-function applyRemote(remoteData) {
-  if (!remoteData || typeof remoteData !== 'object') return;
+/* ═══ Providers ═══════════════════════════════════════════════ */
 
-  backupBeforeFirstCloudPull();
+/** The claude.ai copy: a private per-viewer document store. */
+async function claudeProvider() {
+  if (typeof window === 'undefined' || !window.claude?.use) return null;
+  const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+  if (!db || !user) return null;
+  const uid = await user.id();
+  if (!uid) return null;
+  const base = db.collection(`data/users/${uid}`);
+  return {
+    name: 'claude',
+    user: { id: uid, email: '' },
+    async read(slice) {
+      const snap = await base.doc(slice).get();
+      return snap.exists ? snap.data() : null;
+    },
+    async write(slice, body) { await base.doc(slice).set(body); },
+    watch(slice, cb) {
+      return base.doc(slice).onSnapshot(
+        snap => cb(snap.exists ? snap.data() : null),
+        err => { if (['revoked', 'not_granted'].includes(err.code)) shutDown(); },
+      );
+    },
+  };
+}
 
-  sync._applying = true;
+/** Supabase: the user's own account, reachable from any host. */
+async function supabaseProvider() {
+  if (!canUseSupabase()) return null;
+  const session = await getSession().catch(() => null);
+  if (!session?.user) return null;
+  const supabase = await getSupabase();
+  const uid = session.user.id;
 
-  try {
-    const migrated = store.migrate(remoteData);
+  const rowToBody = row => row ? {
+    updatedAt: Date.parse(row.updated_at) || 0,
+    device: row.device || '',
+    payload: row.payload || {},
+  } : null;
 
-    store.commit(
-      state => {
-        Object.assign(state, migrated);
+  return {
+    name: 'supabase',
+    user: { id: uid, email: session.user.email || '' },
+    async read(slice) {
+      const { data, error } = await supabase.from(TABLE)
+        .select('payload, updated_at, device')
+        .eq('user_id', uid).eq('slice', slice).maybeSingle();
+      if (error) throw error;
+      return rowToBody(data);
+    },
+    async write(slice, body) {
+      const { error } = await supabase.from(TABLE).upsert({
+        user_id: uid, slice,
+        payload: body.payload,
+        device: body.device,
+        updated_at: new Date(body.updatedAt).toISOString(),
+      }, { onConflict: 'user_id,slice' });
+      if (error) throw error;
+    },
+    watch(slice, cb) {
+      const channel = supabase.channel(`gabikos:${uid}:${slice}`)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: TABLE,
+          filter: `user_id=eq.${uid}`,
+        }, ({ new: row }) => { if (row?.slice === slice) cb(rowToBody(row)); })
+        .subscribe();
+      return () => { try { supabase.removeChannel(channel); } catch { /* already gone */ } };
+    },
+  };
+}
 
-        state.syncMeta ??= {
-          slices: {},
-          pulled: {},
-          lastPull: 0,
-        };
+/* ═══ Pull ════════════════════════════════════════════════════ */
 
-        state.syncMeta.lastPull = Date.now();
-      },
-      {
-        fromRemote: true,
-        silentHistory: true,
-        key: 'cloud',
-      }
-    );
-  } finally {
-    sync._applying = false;
+function considerRemote(slice, body) {
+  if (!body) {
+    // nothing stored yet — seed it from here if this device has anything
+    if (hasContent(slice)) { sync._dirty.add(slice); schedulePush(); }
+    else stampLocal(slice, 0);      // an empty account is still "in step"
+    return;
   }
+  const remoteAt = Number(body.updatedAt) || 0;
+
+  // A device that has never synced cannot hold the newer truth, whatever its
+  // clock says — a fresh install stamps its starter content with "now", which
+  // would otherwise out-rank the real data and then overwrite it.
+  if (!hasPulled(slice)) { backupLocal(); applyRemote(slice, body, remoteAt || Date.now()); return; }
+  if (!remoteAt || remoteAt <= localStamp(slice)) return;
+  applyRemote(slice, body, remoteAt);
+}
+
+function applyRemote(slice, body, remoteAt) {
+  const payload = body.payload || {};
+  sync._applying = true;
+  try {
+    store.commit(s => {
+      for (const k of SLICES[slice]) if (k in payload) s[k] = payload[k];
+      s.syncMeta ??= { slices: {}, pulled: {}, lastPull: 0 };
+      s.syncMeta.pulled ??= {};
+      for (const k of SLICES[slice]) s.syncMeta.slices[k] = remoteAt;
+      s.syncMeta.pulled[slice] = true;
+      s.syncMeta.lastPull = Date.now();
+    }, { fromRemote: true, silentHistory: true, key: slice });
+  } finally { sync._applying = false; }
 
   sync.lastPull = Date.now();
-
-  // Custom Builder modules may have changed.
-  import('../apps/builder.js')
-    .then(module => module.registerCollections?.())
-    .catch(() => {})
-    .finally(() => {
-      render();
-      document.dispatchEvent(new CustomEvent('gabikos:chrome'));
-    });
-}
-
-/* ─── Cloud read ─── */
-
-async function readCloud() {
-  const supabase = await getSupabase();
-
-  const { data, error } = await supabase
-    .from('gabikos_data')
-    .select('data, updated_at')
-    .eq('user_id', sync.user.id)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  return data;
-}
-
-/* ─── Cloud write ─── */
-
-async function pushCloud() {
-  if (!sync.enabled || !sync.user || sync._applying) {
-    return false;
-  }
-
-  clearTimeout(sync._timer);
-  sync._timer = null;
-
-  setStatus('syncing');
-
-  try {
-    const supabase = await getSupabase();
-
-    const { error } = await supabase
-      .from('gabikos_data')
-      .upsert(
-        {
-          user_id: sync.user.id,
-          data: cloneState(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'user_id',
-        }
-      );
-
-    if (error) throw error;
-
-    sync.lastPush = Date.now();
-    setStatus('synced');
-
-    return true;
-  } catch (err) {
-    console.error('[GabikOS] cloud save failed:', err);
-
-    setStatus(
-      'error',
-      err?.message || 'Could not save data to the cloud.'
-    );
-
-    return false;
-  }
-}
-
-function schedulePush() {
-  if (!sync.enabled || sync._applying) return;
-
-  clearTimeout(sync._timer);
-
-  sync._timer = setTimeout(() => {
-    pushCloud();
-  }, 900);
-}
-
-/* ─── Realtime ─── */
-
-async function startRealtime() {
-  const supabase = await getSupabase();
-
-  if (sync._channel) {
-    await supabase.removeChannel(sync._channel);
-  }
-
-  sync._channel = supabase
-    .channel(`gabikos-${sync.user.id}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'gabikos_data',
-        filter: `user_id=eq.${sync.user.id}`,
-      },
-      payload => {
-        const remote = payload.new;
-
-        if (!remote?.data) return;
-
-        /*
-         * Ignore our own realtime echo when the cloud row is not newer
-         * than our latest successful push.
-         */
-        const remoteTime = Date.parse(remote.updated_at || '') || 0;
-
-        if (
-          sync.lastPush &&
-          Math.abs(remoteTime - sync.lastPush) < 2000
-        ) {
-          return;
-        }
-
-        applyRemote(remote.data);
-        setStatus('synced', 'Updated from another device');
-      }
-    )
-    .subscribe(status => {
-      if (status === 'CHANNEL_ERROR') {
-        console.warn('[GabikOS] realtime channel error');
-      }
-    });
-}
-
-/* ─── Store listener ─── */
-
-function startStoreListener() {
-  if (sync._unsubscribeStore) return;
-
-  sync._unsubscribeStore = store.subscribe((_state, meta) => {
-    if (!sync.enabled || sync._applying) return;
-
-    if (meta?.fromRemote) return;
-    if (meta?.key === 'syncMeta') return;
-    if (meta?.seed) return;
-
-    schedulePush();
+  sync._dirty.delete(slice);
+  setStatus('synced', body.device ? `updated from ${body.device}` : '');
+  import('../apps/builder.js').then(m => m.registerCollections?.()).catch(() => {}).finally(() => {
+    render();
+    document.dispatchEvent(new CustomEvent('gabikos:chrome'));
   });
 }
 
-/* ─── Boot ─── */
+/* ═══ Push ════════════════════════════════════════════════════ */
+
+function schedulePush() {
+  clearTimeout(sync._timer);
+  sync._timer = setTimeout(flush, 1100);       // one write per pause, not per keystroke
+}
+
+export function flush() {
+  if (!sync.enabled || !sync._dirty.size) return Promise.resolve();
+  const slices = [...sync._dirty];
+  sync._dirty.clear();
+  setStatus('syncing');
+  return Promise.all(slices.map(pushSlice)).then(() => {
+    sync.lastPush = Date.now();
+    if (sync.status === 'syncing') setStatus('synced');
+  });
+}
+
+function pushSlice(slice) {
+  const prev = sync._chain.get(slice) || Promise.resolve();
+  const next = prev.then(() => writeSlice(slice)).catch(() => {});
+  sync._chain.set(slice, next);
+  return next;
+}
+
+async function writeSlice(slice) {
+  const payload = {};
+  for (const k of SLICES[slice]) payload[k] = S()[k];
+  const at = Date.now();
+  const body = { updatedAt: at, device: deviceName(), payload };
+
+  if (new Blob([JSON.stringify(body)]).size > MAX_BODY) {
+    setStatus('error', `“${slice}” is too large to sync. Export a backup and trim it.`);
+    return;
+  }
+  try {
+    await sync._p.write(slice, body);
+    stampLocal(slice, at);
+  } catch (err) {
+    const code = err?.code || '';
+    if (['revoked', 'not_granted'].includes(code)) { shutDown(); return; }
+    // one retry for a transient failure, then report it
+    await new Promise(r => setTimeout(r, 700 + Math.random() * 800));
+    try { await sync._p.write(slice, body); stampLocal(slice, at); }
+    catch (e2) { setStatus('error', e2?.message || 'Could not save to the cloud'); }
+  }
+}
+
+/* ═══ Lifecycle ═══════════════════════════════════════════════ */
+
+let unwatchers = [];
+let storeUnsub = null;
 
 export async function initSync() {
+  shutDown(true);
   setStatus('connecting');
-
   try {
-    const session = await getSession();
-
-    if (!session?.user) {
-      sync.enabled = false;
-      sync.user = null;
-
-      setStatus('local', 'Sign in to enable cloud sync');
+    // the artifact copy cannot reach Supabase, so try its own store first
+    const provider = (await claudeProvider()) || (await supabaseProvider());
+    if (!provider) {
+      setStatus('local', canUseSupabase() ? 'Sign in to sync across your devices' : '');
       return;
     }
 
-    sync.user = session.user;
+    // A different account on this device must not inherit the last one's data —
+    // neither on screen, nor pushed up into the new account.
+    if (meta().userId && meta().userId !== provider.user.id) {
+      backupLocal('before-account-switch');
+      const fresh = blankState();
+      store.commit(s => {
+        for (const slice of SLICE_NAMES) for (const k of SLICES[slice]) s[k] = fresh[k];
+        s.profile = { ...fresh.profile, onboarded: true };   // they just signed in; do not ask again
+        s.syncMeta = { slices: {}, pulled: {}, lastPull: 0, userId: provider.user.id };
+      }, { fromRemote: true, silentHistory: true, key: 'syncMeta' });
+    }
+    store.commit(s => { s.syncMeta ??= {}; s.syncMeta.userId = provider.user.id; },
+      { fromRemote: true, silentHistory: true, key: 'syncMeta' });
+
+    sync._p = provider;
+    sync.backend = provider.name;
+    sync.user = provider.user;
     sync.enabled = true;
 
-    const cloud = await readCloud();
-
-    if (cloud?.data && Object.keys(cloud.data).length > 0) {
-      /*
-       * Existing cloud data wins when a device joins the account.
-       * A backup of this device is made before replacing anything.
-       */
-      applyRemote(cloud.data);
-    } else if (hasUsefulLocalData()) {
-      /*
-       * First device/account login:
-       * upload existing GabikOS local data.
-       */
-      await pushCloud();
-    } else {
-      /*
-       * Even a blank state gets a cloud row so the account is initialized.
-       */
-      await pushCloud();
+    for (const slice of SLICE_NAMES) {
+      const un = provider.watch(slice, body => { if (!sync._applying) considerRemote(slice, body); });
+      if (typeof un === 'function') unwatchers.push(un);
+      // a watch may only report changes, so read the current value once
+      provider.read(slice).then(body => considerRemote(slice, body)).catch(() => {});
     }
 
-    startStoreListener();
-    await startRealtime();
+    storeUnsub = store.subscribe((_s, m) => {
+      if (sync._applying || !sync.enabled) return;
+      if (m?.fromRemote || m?.seed || m?.key === 'syncMeta') return;
+      const slice = m?.key ? sliceOfKey(m.key) : null;
+      if (slice) sync._dirty.add(slice); else SLICE_NAMES.forEach(k => sync._dirty.add(k));
+      schedulePush();
+    });
+
+    // realtime can drop silently; a slow poll makes sure a change still lands
+    clearInterval(sync._poll);
+    sync._poll = setInterval(() => {
+      if (document.visibilityState !== 'visible' || !sync.enabled) return;
+      for (const slice of SLICE_NAMES) provider.read(slice).then(b => considerRemote(slice, b)).catch(() => {});
+    }, 45000);
 
     setStatus('synced');
   } catch (err) {
-    console.error('[GabikOS] Supabase sync initialization failed:', err);
-
-    sync.enabled = false;
-
-    setStatus(
-      'error',
-      err?.message || 'Cloud sync is unavailable.'
-    );
+    console.error('[GabikOS] sync unavailable:', err);
+    setStatus('error', err?.message || 'Cloud sync is unavailable');
   }
 }
 
-/* ─── Public controls ─── */
-
-export async function flush() {
-  return pushCloud();
+function shutDown(quiet = false) {
+  clearTimeout(sync._timer); clearInterval(sync._poll);
+  unwatchers.forEach(u => { try { u(); } catch { /* already gone */ } });
+  unwatchers = [];
+  storeUnsub?.(); storeUnsub = null;
+  sync._p = null; sync.enabled = false; sync.backend = null; sync.user = null;
+  sync._dirty.clear();
+  if (!quiet) setStatus('local');
 }
 
-export async function syncNow() {
-  return pushCloud();
+export function stopSync() { shutDown(); }
+
+/**
+ * Sign-out: stop syncing and drop what was pulled, but REMEMBER which
+ * account this device last held. Forgetting it would leave the next person
+ * to sign in inheriting this data — and pushing it into their account.
+ */
+export function forgetAccount() {
+  shutDown();
+  store.commit(s => {
+    const last = s.syncMeta?.userId;
+    s.syncMeta = { slices: {}, pulled: {}, lastPull: 0, userId: last };
+  }, { fromRemote: true, silentHistory: true, key: 'syncMeta' });
+  backedUp = false;
 }
 
-export async function stopSync() {
-  clearTimeout(sync._timer);
-  sync._timer = null;
-
-  if (sync._unsubscribeStore) {
-    sync._unsubscribeStore();
-    sync._unsubscribeStore = null;
-  }
-
-  if (sync._channel) {
-    try {
-      const supabase = await getSupabase();
-      await supabase.removeChannel(sync._channel);
-    } catch (err) {
-      console.warn('[GabikOS] could not close realtime channel:', err);
-    }
-  }
-
-  sync._channel = null;
-  sync.enabled = false;
-  sync.user = null;
-
-  setStatus('local');
+export function syncNow() {
+  if (!sync.enabled) return false;
+  SLICE_NAMES.forEach(k => sync._dirty.add(k));
+  flush();
+  for (const slice of SLICE_NAMES) sync._p.read(slice).then(b => considerRemote(slice, b)).catch(() => {});
+  return true;
 }
-
-/* ─── UI status ─── */
 
 export function syncLabel() {
   switch (sync.status) {
-    case 'synced':
-      return {
-        text: 'Synced',
-        tone: 'ok',
-        icon: 'cloud',
-      };
-
-    case 'syncing':
-      return {
-        text: 'Saving…',
-        tone: 'info',
-        icon: 'refresh',
-      };
-
-    case 'connecting':
-      return {
-        text: 'Connecting…',
-        tone: '',
-        icon: 'cloud',
-      };
-
-    case 'error':
-      return {
-        text: 'Sync problem',
-        tone: 'bad',
-        icon: 'alert',
-      };
-
-    default:
-      return {
-        text: 'This device only',
-        tone: '',
-        icon: 'lock',
-      };
+    case 'synced':     return { text: 'Synced', tone: 'ok', icon: 'cloud' };
+    case 'syncing':    return { text: 'Saving…', tone: 'info', icon: 'refresh' };
+    case 'connecting': return { text: 'Connecting…', tone: '', icon: 'cloud' };
+    case 'error':      return { text: 'Sync problem', tone: 'bad', icon: 'alert' };
+    default:           return { text: canUseSupabase() ? 'Sign in to sync' : 'This device only', tone: '', icon: 'lock' };
   }
 }

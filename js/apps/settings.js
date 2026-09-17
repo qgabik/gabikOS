@@ -8,6 +8,7 @@ import { openForm, confirmDialog, toast, on, pageHead, statTile, qs, qsa } from 
 import { esc, download, pickFile, plural, initials, fmtDate, today, cap, relTime } from '../core/util.js';
 import { applyTheme, setTheme, ACCENTS, THEMES, themeById } from '../core/theme.js';
 import { sync, syncNow, syncLabel, onSyncChange } from '../core/sync.js';
+import { accountCard, wireAccount, openAuth } from './account.js';
 
 export const SHORTCUTS = [
   ['Ctrl / ⌘ + K', 'Open the command palette'],
@@ -196,7 +197,7 @@ registerView('settings', {
 
     if (tab === 'data') {
       const sl = syncLabel();
-      body = `
+      body = accountCard() + `
       <div class="card card--pad mb-4 callout" data-sync-card>
         <div class="row gap-3 row--wrap">
           <span class="stat__icon">${icon(sl.icon)}</span>
@@ -319,9 +320,7 @@ registerView('settings', {
       const out = root.querySelector('[data-scale]')?.previousElementSibling?.querySelector('strong');
       if (out) out.textContent = Math.round(Number(e.target.value) * 100) + '%';
     });
-    on(root, 'click', '[data-sync-now]', () => {
-      syncNow() ? toast('Pushing everything to the cloud…', 'info') : toast('Sync is not available here', 'warn');
-    });
+    wireAccount(root);
     on(root, 'click', '[data-accent]', (e, el) => {
       store.setSetting('accent', el.dataset.accent);
       applyTheme();
