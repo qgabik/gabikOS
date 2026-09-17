@@ -105,15 +105,19 @@ and compact / normal / roomy row spacing.
 Built for how Czech schools actually work: numbered periods with their real times, odd/even week
 alternation, subject abbreviations and rooms.
 
-Three ways to fill it:
+Four ways to fill it:
 
-1. **Import an `.ics` calendar export** — the best result. Most school systems (ŠkolaOnline, Bakaláři)
+1. **Photograph it.** Point your camera at the timetable — on paper or on screen — and it gets read and
+   filled in for you. Rows it cannot read are dropped rather than guessed, and nothing is saved until you
+   have reviewed the list. Needs a host that can reach Claude, so this appears on the claude.ai copy and
+   stays hidden elsewhere.
+2. **Import an `.ics` calendar export** — the most exact. Most school systems (ŠkolaOnline, Bakaláři)
    can publish your timetable as a calendar file. The importer collapses however many weeks the file
    covers into one representative week, works out which lessons run on alternating weeks from how often
    they appear, pulls teachers out of the description, drops all-day entries like holidays, and snaps
    each start time to your nearest period. You review and untick before anything is saved.
-2. **Paste it** — copy the timetable off the page; it reads day, period, subject and room as best it can.
-3. **Type it** — click any empty square. A full week takes a few minutes.
+3. **Paste it** — copy the timetable off the page; it reads day, period, subject and room as best it can.
+4. **Type it** — click any empty square. A full week takes a few minutes.
 
 **There is no live link to ŠkolaOnline, and there cannot be one.** A static site has no server to hold a
 login, browsers block one site from reading another's private pages, and there is no public API. An

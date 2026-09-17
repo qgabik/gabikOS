@@ -629,3 +629,36 @@
 .nextlesson__when{font-size:12.6px;font-weight:700;font-variant-numeric:tabular-nums;flex:none;
   color:var(--text-2)}
 @media (max-width:640px){.timetable{min-width:540px}.tt__cell{height:54px}}
+
+/* ─── Ways to add a timetable ─── */
+.addways{display:flex;flex-direction:column;gap:11px;max-width:620px;margin:0 auto}
+.addway{display:flex;align-items:flex-start;gap:14px;width:100%;padding:16px;text-align:left;
+  border-radius:var(--r-md);border:1px solid var(--line);background:var(--surface);
+  transition:all var(--t-fast);position:relative}
+.addway:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--shadow)}
+.addway--hero{border-color:var(--accent-line);
+  background:linear-gradient(135deg,var(--accent-soft),transparent 72%),var(--surface)}
+.addway--hero:hover{border-color:var(--accent)}
+.addway__ic{display:grid;place-items:center;width:46px;height:46px;flex:none;border-radius:14px;
+  background:var(--accent-soft);color:var(--accent)}
+.addway--hero .addway__ic{background:var(--accent);color:#fff}
+.addway__txt{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.addway__txt strong{font-size:14.8px;font-weight:650;letter-spacing:-.015em}
+.addway__txt small{font-size:12.8px;color:var(--text-2);line-height:1.55}
+.addway__txt code{font-family:var(--mono);font-size:.88em;padding:1px 5px;border-radius:4px;
+  background:var(--surface-3);color:var(--accent)}
+.addway__tag{flex:none;align-self:center}
+@media (max-width:560px){
+  .addway{padding:14px;gap:12px}
+  .addway__ic{width:40px;height:40px;border-radius:12px}
+  .addway__txt strong{font-size:14px}
+  .addway__txt small{font-size:12.2px}
+  .addway__tag{display:none}
+}
+
+.ai-reading{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:18px 8px}
+.ai-reading__spin{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;
+  background:var(--accent-soft)}
+.ai-reading__spin .spinner{width:24px;height:24px;border-width:2.5px}
+.ai-reading strong{font-size:14.6px}
+.ai-reading p{font-size:12.8px;max-width:300px;line-height:1.55}

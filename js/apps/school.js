@@ -283,6 +283,131 @@ function parsePasted(text) {
   return out;
 }
 
+/* ─── Read a photo of the timetable ───────────────────────────────
+   The fastest route by far: point a camera at the paper or the screen
+   and let Claude read it. Only available where the page is served by a
+   Claude viewer; everywhere else the affordance stays hidden. */
+let _ai = null;
+export async function ensureAI() {
+  if (_ai !== null) return _ai;
+  try {
+    const sample = await window.claude?.use?.('sample');
+    if (!sample) return (_ai = false);
+    const limits = await sample.limits().catch(() => null);
+    _ai = limits?.images ? { sample, limits: limits.images } : false;
+  } catch { _ai = false; }
+  return _ai;
+}
+
+async function photoImport() {
+  const ai = await ensureAI();
+  if (!ai) { toast('Reading photos is only available on the claude.ai copy', 'warn', { duration: 5000 }); return; }
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = ai.limits.mediaTypes.join(',');
+  input.multiple = ai.limits.maxCount > 1;
+  input.onchange = async () => {
+    const files = [...(input.files || [])].slice(0, ai.limits.maxCount);
+    if (!files.length) return;
+    const tooBig = files.find(f => f.size > ai.limits.maxInputBytes);
+    if (tooBig) { toast(`${tooBig.name} is too large to read`, 'warn'); return; }
+    runPhotoRead(files, ai);
+  };
+  input.click();
+}
+
+function runPhotoRead(files, ai) {
+  const ctl = new AbortController();
+  let settled = false;
+
+  modal.open({
+    title: 'Reading your timetable', size: 'slim', closable: false,
+    body: `<div class="ai-reading">
+        <div class="ai-reading__spin"><span class="spinner"></span></div>
+        <strong id="aiStatus">Looking at ${plural(files.length, 'photo')}…</strong>
+        <p class="dim">This takes a few seconds. Nothing is saved until you have checked it.</p>
+      </div>`,
+    footer: `<div class="grow"></div><button class="btn" data-stop>Cancel</button>`,
+    onMount: (_b, foot) => { foot.querySelector('[data-stop]').onclick = () => { ctl.abort(); }; },
+    onClose: () => { if (!settled) ctl.abort(); },
+  });
+
+  const ps = periods();
+  const prompt = [
+    'This photo shows a school timetable (a Czech "rozvrh hodin", or similar).',
+    'Read every lesson you can see.',
+    '',
+    'Reply with ONLY a JSON array. One object per lesson:',
+    '{"day":1,"period":1,"start":"08:00","subject":"Matematika","room":"U2","teacher":"","week":"all"}',
+    '',
+    'Rules:',
+    '- day: 1=Monday … 5=Friday (6=Saturday, 7=Sunday).',
+    '- period: the lesson number the table shows, if it shows one.',
+    '- start: the start time "HH:MM", if times are shown. Give period or start — both if both are visible.',
+    '- subject: exactly as printed. Keep Czech spelling and diacritics.',
+    '- room / teacher: "" when not shown. Never invent them.',
+    '- week: "all" normally. Use "a" for an odd/lichý-week-only lesson and "b" for an even/sudý-week-only one.',
+    '- Skip breaks, lunch, headers and empty cells.',
+    '- If a cell is unreadable, leave it out rather than guessing.',
+    '',
+    'For reference, this app uses these lesson times:',
+    ps.map(p => `${p.n} = ${p.start}–${p.end}`).join(', '),
+  ].join('\n');
+
+  ai.sample.json(prompt, { images: files, modelTier: 'default', signal: ctl.signal, cache: false,
+    onText: () => { const el = qs('#aiStatus'); if (el) el.textContent = 'Writing out the lessons…'; } })
+    .then(rows => {
+      settled = true;
+      modal.close();
+      const slots = rowsToSlots(Array.isArray(rows) ? rows : []);
+      if (!slots.length) { toast('Could not find any lessons in that photo — try a sharper, straighter shot', 'warn', { duration: 6500 }); return; }
+      previewImport(slots, plural(files.length, 'photo'));
+    })
+    .catch(err => {
+      settled = true;
+      modal.close();
+      const say = {
+        cancelled: null,
+        not_granted: 'You declined, so the photo was not read.',
+        rate_limited: 'Too many requests just now — try again in a minute.',
+        image_rejected: 'That image could not be read. Try a JPEG or PNG under 20 MB.',
+        images_unavailable: 'This copy of GabikOS cannot read photos.',
+        invalid_json: 'The timetable came back unreadable. Try a straighter, better-lit photo.',
+        refused: 'That image could not be processed.',
+      };
+      const msg = err?.code in say ? say[err.code] : 'Something went wrong reading the photo.';
+      if (msg) toast(msg, 'bad', { duration: 6000 });
+    });
+}
+
+/** Rows from the photo reader → the same slot shape the .ics path produces. */
+function rowsToSlots(rows) {
+  const ps = periods();
+  const out = [];
+  for (const r of rows) {
+    const day = Number(r?.day);
+    const subject = String(r?.subject || '').trim();
+    if (!day || day < 1 || day > 7 || !subject) continue;
+
+    let p = null;
+    if (r.period != null && r.period !== '') p = ps.find(x => Number(x.n) === Number(r.period)) || null;
+    if (!p && r.start) {
+      const target = minutes(String(r.start));
+      p = ps.reduce((a, x) => Math.abs(minutes(x.start) - target) < Math.abs(minutes(a.start) - target) ? x : a, ps[0]);
+    }
+    if (!p) continue;
+
+    const week = ['a', 'b'].includes(String(r.week).toLowerCase()) ? String(r.week).toLowerCase() : 'all';
+    out.push({
+      day, start: p.start, end: p.end, title: subject,
+      room: String(r.room || '').trim(), teacher: String(r.teacher || '').trim(),
+      count: 1, everyWeek: week === 'all', weekParity: week,
+    });
+  }
+  return out.sort((a, b) => (a.day - b.day) || a.start.localeCompare(b.start));
+}
+
 /* ─── Periods editor ─── */
 async function editPeriods() {
   const cur = periods();
@@ -344,13 +469,16 @@ registerView('school', {
     on(root, 'click', '[data-stab]', (e, el) => navigate('school', { ...params(), tab: el.dataset.stab }));
     on(root, 'click', '[data-new-lesson]', () => newLesson());
     on(root, 'click', '[data-import]', e => contextMenu(e, [
+      ...(_ai ? [{ label: 'Read a photo of my timetable', icon: 'image', action: photoImport }] : []),
       { label: 'Import a calendar file (.ics)', icon: 'calendar', action: importICS },
       { label: 'Paste my timetable', icon: 'copy', action: importPaste },
       '-',
       { label: 'Set lesson times', icon: 'clock', action: editPeriods },
       { label: 'How do I get the file?', icon: 'info', action: howToExport },
     ]));
+    on(root, 'click', '[data-photo]', photoImport);
     on(root, 'click', '[data-ics]', importICS);
+    ensureAI().then(ai => { if (ai) root.querySelector('[data-ai-card]')?.removeAttribute('hidden'); });
     on(root, 'click', '[data-paste]', importPaste);
     on(root, 'click', '[data-howto]', howToExport);
     on(root, 'click', '[data-periods]', editPeriods);
@@ -372,42 +500,48 @@ registerView('school', {
 
 /* ─── Renderers ─── */
 function importIntro() {
-  return `<div class="card card--pad mb-4 callout">
-      <div class="row gap-3">
-        <span class="stat__icon">${icon('info')}</span>
-        <div>
-          <h3>About linking ŠkolaOnline directly</h3>
-          <p class="dim mt-2" style="font-size:13.2px">GabikOS cannot log into ŠkolaOnline for you. It has no
-          server to hold a password, and browsers block one website from reading another's private pages.
-          What works instead is an export: most schools offer a calendar file, and that carries your whole
-          timetable — subjects, rooms, teachers and times.</p>
-        </div>
-      </div>
+  return `
+    <div class="addways">
+      <button class="addway addway--hero" data-photo hidden data-ai-card>
+        <span class="addway__ic">${icon('image', 'ic ic--lg')}</span>
+        <span class="addway__txt">
+          <strong>Photograph your timetable</strong>
+          <small>Point your camera at the paper or the screen. It gets read and filled in for you —
+            subjects, rooms, periods and all.</small>
+        </span>
+        <span class="chip chip--accent addway__tag">Fastest</span>
+      </button>
+
+      <button class="addway" data-ics>
+        <span class="addway__ic">${icon('calendar', 'ic ic--lg')}</span>
+        <span class="addway__txt">
+          <strong>Import a calendar file</strong>
+          <small>Export <code>.ics</code> from ŠkolaOnline or Bakaláři. Carries teachers and
+            alternating weeks exactly.</small>
+        </span>
+        <span class="chip addway__tag">Most exact</span>
+      </button>
+
+      <button class="addway" data-paste>
+        <span class="addway__ic">${icon('copy', 'ic ic--lg')}</span>
+        <span class="addway__txt">
+          <strong>Paste it in</strong>
+          <small>Copy the timetable off the page and paste the text.</small>
+        </span>
+      </button>
+
+      <button class="addway" data-new-lesson>
+        <span class="addway__ic">${icon('plus', 'ic ic--lg')}</span>
+        <span class="addway__txt">
+          <strong>Type it in</strong>
+          <small>A week takes about five minutes and is always right.</small>
+        </span>
+      </button>
     </div>
-    <div class="grid grid--3">
-      <button class="card card--pad card--hover import-card" data-ics>
-        <span class="import-card__ic">${icon('calendar', 'ic ic--lg')}</span>
-        <h3>Import a calendar file</h3>
-        <p class="dim">Export <code>.ics</code> from ŠkolaOnline, Bakaláři or Google Calendar and drop it in.
-          Subjects, rooms, teachers and alternating weeks all come across.</p>
-        <span class="chip chip--accent mt-3">Best result</span>
-      </button>
-      <button class="card card--pad card--hover import-card" data-paste>
-        <span class="import-card__ic">${icon('copy', 'ic ic--lg')}</span>
-        <h3>Paste it in</h3>
-        <p class="dim">Copy the timetable off the page and paste it. It reads day, period, subject and room
-          as best it can — you fix the rest in the grid.</p>
-      </button>
-      <button class="card card--pad card--hover import-card" data-new-lesson>
-        <span class="import-card__ic">${icon('plus', 'ic ic--lg')}</span>
-        <h3>Type it once</h3>
-        <p class="dim">Thirty lessons takes about five minutes, and then it is exactly right and never
-          goes stale.</p>
-      </button>
-    </div>
-    <div class="row gap-2 mt-4">
-      <button class="btn btn--ghost btn--sm" data-howto>${icon('info')}Where is the export in ŠkolaOnline?</button>
+
+    <div class="row gap-2 mt-4 row--wrap" style="justify-content:center">
       <button class="btn btn--ghost btn--sm" data-periods>${icon('clock')}Set lesson times</button>
+      <button class="btn btn--ghost btn--sm" data-howto>${icon('info')}Why not connect to ŠkolaOnline directly?</button>
     </div>`;
 }
 
@@ -534,21 +668,25 @@ async function editSubject(id) {
 
 function howToExport() {
   modal.open({
-    title: 'Getting your timetable out of ŠkolaOnline', size: '',
+    title: 'Getting your timetable in', size: '',
     body: `<div class="md" style="font-size:13.4px">
-      <p>Systems differ between schools, so look for whichever of these your account has:</p>
+      <p><strong>Photographing it is the quickest way</strong> — no export, no login, no hunting through
+        menus. Take a clear, straight-on shot and it gets read for you.</p>
+      <p>If you would rather have it exact, look for whichever of these your school offers:</p>
       <ol>
-        <li><strong>Calendar export</strong> — look for <em>Kalendář</em>, then an <em>Export</em>,
-          <em>iCal</em> or <em>Publikovat</em> option. That produces an <code>.ics</code> file: the best
-          result, since it carries rooms, teachers and alternating weeks.</li>
-        <li><strong>Print / PDF the timetable</strong> (<em>Rozvrh → Tisk</em>) — then copy the text out
-          of the PDF and use <em>Paste my timetable</em>.</li>
-        <li><strong>Select the table on screen</strong> and copy it, then paste it in the same way.</li>
+        <li><strong>Calendar export</strong> — <em>Kalendář</em>, then <em>Export</em>, <em>iCal</em> or
+          <em>Publikovat</em>. That gives an <code>.ics</code> file carrying rooms, teachers and
+          alternating weeks precisely.</li>
+        <li><strong>Print / PDF</strong> (<em>Rozvrh → Tisk</em>), then copy the text out and paste it.</li>
       </ol>
-      <p>If your school's ŠkolaOnline offers none of these, typing a week in by hand takes about five
-        minutes and never expires. Click any empty square in the grid to fill it.</p>
-      <blockquote><p>A calendar export is a file — it is a snapshot, not a live link. If your school
-        changes the timetable, export again and tick <em>Replace my current timetable</em>.</p></blockquote>
+      <h3>Why can't it just log in?</h3>
+      <p>Two reasons, neither of which a password would solve. GabikOS has no server — it is only files in
+        your browser, so there is nowhere safe to keep a login. And browsers deliberately stop one website
+        from reading another's private pages; that rule is enforced by Safari itself, not by this app.</p>
+      <p>So a photo or an export is not a workaround — it is the only honest way to do it without handing
+        your school account to a third party.</p>
+      <blockquote><p>Either way it is a snapshot. When the timetable changes, do it again and tick
+        <em>Replace my current timetable</em>.</p></blockquote>
     </div>`,
     footer: `<div class="grow"></div><button class="btn btn--primary" data-ok>Got it</button>`,
     onMount: (_b, foot) => { foot.querySelector('[data-ok]').onclick = () => modal.close(); },
