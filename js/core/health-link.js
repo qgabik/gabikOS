@@ -29,11 +29,37 @@ export const PUSH_FN = 'gabikos_health_push';
    One day of readings. Every field is optional but `date`; a missing
    field means "the phone had nothing", never "zero".               */
 
-const num = v => {
+/**
+ * A number as a phone writes it, not as JavaScript wants it.
+ *
+ * Shortcuts formats a count in the phone's own language before putting it
+ * in the URL, so a Czech iPhone sends today's steps as "8 467" and a German
+ * one as "8.467". `Number` gives NaN for the first and 8.467 for the second,
+ * which silently became no steps at all and then eight steps. Strip the
+ * grouping, work out which mark is the decimal one, and parse what is left.
+ */
+export function parseLocaleNumber(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   if (v == null || v === '' || typeof v === 'boolean') return null;   // Number(null) is 0, which is a reading
-  const n = Number(v);
+
+  // every space a locale uses to group digits, including the non-breaking ones
+  let t = String(v).trim().replace(/[\s\u00a0\u202f\u2009\u2007\u2060']/g, '');
+  if (!/^[-+]?[\d.,]+$/.test(t)) return null;
+
+  const mark = Math.max(t.lastIndexOf(','), t.lastIndexOf('.'));
+  if (mark > -1) {
+    const tail = t.slice(mark + 1);
+    // One or two digits after the last mark means it is a decimal point;
+    // three means it was grouping ("8.467" is eight thousand, not eight).
+    t = /^\d{1,2}$/.test(tail)
+      ? t.slice(0, mark).replace(/[.,]/g, '') + '.' + tail
+      : t.replace(/[.,]/g, '');
+  }
+  const n = Number(t);
   return Number.isFinite(n) ? n : null;
-};
+}
+
+const num = parseLocaleNumber;
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 
 const pad2 = n => String(n).padStart(2, '0');
@@ -97,7 +123,8 @@ export function normalizeSample(raw = {}) {
   if (out.activeEnergy != null) out.activeEnergy = clamp(Math.round(out.activeEnergy), 0, 30_000);
   if (out.exerciseMinutes != null) out.exerciseMinutes = clamp(Math.round(out.exerciseMinutes), 0, 1440);
 
-  const hasAny = Object.entries(out).some(([k, v]) => k !== 'date' && v != null);
+  out.at = Number(raw.at) || Date.now();
+  const hasAny = Object.entries(out).some(([k, v]) => k !== 'date' && k !== 'at' && v != null);
   return hasAny ? out : null;
 }
 
@@ -232,6 +259,7 @@ export async function pullInbox(days = 60) {
     weight: r.weight,
     active_energy: r.active_energy,
     exercise_minutes: r.exercise_minutes,
+    at: Date.parse(r.updated_at) || 0,
   })).filter(Boolean);
 }
 
@@ -259,10 +287,28 @@ export function cloudRecipe(key) {
   };
 }
 
+/**
+ * Knock on the door without leaving anything behind.
+ *
+ * Sending made-up steps to prove the chain works puts made-up steps in the
+ * day, where they sit until something overwrites them. Every value here is
+ * null instead: the function still has to accept the key and run, and it
+ * stamps the key as used, which is the thing worth checking.
+ */
+export async function cloudPing(key) {
+  const before = await healthKey().catch(() => null);
+  await cloudPush(key, { date: today(), steps: null });
+  const after = await healthKey().catch(() => null);
+  return {
+    reached: true,
+    stamped: !!after?.last_used_at && after.last_used_at !== before?.last_used_at,
+  };
+}
+
 /** Post a sample the way the Shortcut will — used by "Send a test". */
 export async function cloudPush(key, sample) {
   const cfg = supabaseConfig();
-  const s = normalizeSample(sample) || { date: today() };
+  const s = normalizeSample(sample) || { date: sample?.date || today() };
   const res = await fetch(`${cfg.url}/rest/v1/rpc/${PUSH_FN}`, {
     method: 'POST',
     headers: { apikey: cfg.key, 'Content-Type': 'application/json' },

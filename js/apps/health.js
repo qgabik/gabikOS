@@ -14,8 +14,8 @@ import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, cla
          plural, dayName, parseISO, download, pickFile } from '../core/util.js';
 import { lineChart, barChart } from '../core/charts.js';
 import { readLink, stripLink, normalizeSample, minutesBetween, clockMins,
-         healthKey, pullInbox, cloudReady, cloudRecipe, cloudPush, linkTemplate,
-         parseAppleExport, parsePasted, diagnose, simpleLink } from '../core/health-link.js';
+         healthKey, pullInbox, cloudReady, cloudRecipe, linkTemplate,
+         parseAppleExport, parsePasted, diagnose, simpleLink, cloudPing } from '../core/health-link.js';
 
 /* ─── Small formatters ─── */
 const pad2 = n => String(n).padStart(2, '0');
@@ -63,8 +63,14 @@ export function setMetric(patch, date = today()) {
 function setManual(patch, date = today()) {
   const cur = metricFor(date) || {};
   const src = { ...(cur.src || {}) };
-  for (const k of Object.keys(patch)) if (patch[k] != null && patch[k] !== '') src[k] = 'manual';
-  setMetric({ ...patch, src }, date);
+  const srcAt = { ...(cur.srcAt || {}) };
+  const now = Date.now();
+  for (const k of Object.keys(patch)) {
+    if (patch[k] == null || patch[k] === '') continue;
+    src[k] = 'manual';
+    srcAt[k] = now;
+  }
+  setMetric({ ...patch, src, srcAt }, date);
 }
 
 export const waterToday = () => metricFor()?.water || 0;
@@ -97,19 +103,27 @@ export function ingestSamples(samples, source = 'apple') {
     if (!s) continue;
     const cur = metricFor(s.date) || {};
     const src = { ...(cur.src || {}) };
+    const srcAt = { ...(cur.srcAt || {}) };
+    const at = Number(s.at) || Date.now();
     const patch = {};
     for (const [from, to] of Object.entries(AUTO_FIELDS)) {
       const v = s[from];
       if (v == null) continue;
       if (src[to] === 'manual' && cur[to] != null) continue;
-      if (cur[to] === v) continue;
+      // Two sources write the same field: the Shortcut's link, and whatever
+      // the cloud inbox still holds. Without this the older of the two wins
+      // whenever it happens to be read last — a stale reading from this
+      // morning would overwrite the count that just arrived.
+      if (cur[to] != null && srcAt[to] && at < srcAt[to]) continue;
+      if (cur[to] === v) { srcAt[to] = Math.max(srcAt[to] || 0, at); continue; }
       patch[to] = v;
       src[to] = source;
+      srcAt[to] = at;
       values++;
     }
     if (!Object.keys(patch).length) continue;
     if (patch.sleepMins != null || patch.bedtime || patch.wake) patch.sleep = undefined;
-    setMetric(derive({ ...cur, ...patch, src }), s.date);
+    setMetric(derive({ ...cur, ...patch, src, srcAt }), s.date);
     days++;
   }
   if (days) {
@@ -412,7 +426,7 @@ p_steps  Number   (the Statistic variable)</pre>
           </ol>
         </div>
         <div class="row gap-2 mt-4 row--wrap">
-          <button class="btn btn--primary" data-ah-test>${icon('zap')}Send a test reading</button>
+          <button class="btn btn--primary" data-ah-test>${icon('zap')}Test the connection</button>
           <button class="btn" data-ah-sync>${icon('refresh')}Check for readings</button>
           <button class="btn btn--ghost" data-ah-rotate>${icon('refresh')}New key</button>
         </div>` : ''}
@@ -488,9 +502,10 @@ function wireBridge(root) {
     if (!key) return;
     el.disabled = true;
     try {
-      await cloudPush(key, { date: today(), steps: 1234 });
-      const res = await syncAppleHealth({ quiet: false });
-      toast(res?.days ? 'It works — a test reading arrived.' : 'Sent, but nothing came back.', res?.days ? 'ok' : 'warn');
+      const res = await cloudPing(key);
+      toast(res.stamped
+        ? 'The connection works — your phone can send now.'
+        : 'The server answered, but did not record the key as used.', res.stamped ? 'ok' : 'warn');
     } catch (err) {
       toast(healthError(err), 'bad', { duration: 7000 });
       root.querySelector('[data-ah-diagnose]')?.click();
