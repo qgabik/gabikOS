@@ -780,3 +780,5 @@
   .periodgrid__head,.periodrow{grid-template-columns:38px 1fr 1fr 32px;gap:6px}
   .periodrow .input{padding:7px 6px;font-size:12.4px}
 }
+.localnote h3{font-size:14.6px}
+@media (max-width:640px){ .localnote .stat__icon{display:none} }

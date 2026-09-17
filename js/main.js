@@ -262,7 +262,8 @@ function onboard() {
           const name = (qs('#obName').value || 'Gabik').trim();
           const seed = qs('#obSeed').checked;
           store.setProfile({ name, onboarded: true });
-          if (seed) seedStarter();
+          // the cloud may already have this account's data on the way in
+          if (seed) seedStarter({ onlyIfEmpty: true });
           modal.close();
           resolve();
         };

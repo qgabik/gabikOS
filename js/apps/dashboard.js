@@ -17,6 +17,7 @@ import { metricFor, addWater } from './health.js';
 import { monthNet, monthExpense, money } from './finance.js';
 import { currentAndNext, todayLessons, subjectOf, parityLabel, weekParity } from './school.js';
 import { sparkline } from '../core/charts.js';
+import { sync } from '../core/sync.js';
 
 const QUOTES = [
   ['You do not rise to the level of your goals. You fall to the level of your systems.', 'James Clear'],
@@ -61,6 +62,26 @@ registerView('dashboard', {
       buckets.push(hasEntryToday() ? 100 : 0);
       return Math.round(buckets.reduce((a, b) => a + b, 0) / buckets.length);
     })();
+
+    /* A copy with nowhere to sign you in cannot sync, and the difference is
+       invisible until your two devices disagree — so say it plainly, once. */
+    const localNotice = (!sync.enabled && sync.status === 'local' && !settings().hideLocalNotice) ? `
+      <div class="card card--pad mb-4 callout localnote">
+        <div class="row gap-3 row--wrap">
+          <span class="stat__icon">${icon('lock')}</span>
+          <div class="grow" style="min-width:200px">
+            <h3>This copy saves only on this device</h3>
+            <p class="dim mt-2" style="font-size:13px">There is no account here, so what you write on this
+              phone stays on this phone and a computer starts with its own separate copy. To have one
+              system that follows you, open GabikOS from your Claude account — the bar at the top will
+              say <strong>Synced</strong> instead of <em>This device only</em>.</p>
+            <div class="row gap-2 mt-3 row--wrap">
+              <button class="btn btn--sm" data-go-data>${icon('download')}Export / import my data</button>
+              <button class="btn btn--sm btn--ghost" data-hide-notice>Got it</button>
+            </div>
+          </div>
+        </div>
+      </div>` : '';
 
     const hero = `
     <section class="hero">
@@ -248,7 +269,7 @@ registerView('dashboard', {
       <cite>— ${esc(quote[1])}</cite>
     </div>`;
 
-    return hero + stats + `
+    return localNotice + hero + stats + `
       <div class="dash">
         <div class="dash__col">${taskCard}${habitCard}${activityCard}</div>
         <div class="dash__col">${schoolCard}${scheduleCard}${journalCard}${goalCard}${moneyCard}${quoteCard}</div>
@@ -257,6 +278,8 @@ registerView('dashboard', {
 
   onMount(root) {
     on(root, 'click', '[data-go]', (e, el) => navigate(el.dataset.go));
+    on(root, 'click', '[data-go-data]', () => navigate('settings', { tab: 'data' }));
+    on(root, 'click', '[data-hide-notice]', () => { store.setSetting('hideLocalNotice', true); render(); });
     on(root, 'click', '[data-toggle]', (e, el) => toggleTask(el.dataset.toggle));
     on(root, 'click', '[data-edit]', (e, el) => import('./tasks.js').then(m => m.editTask(el.dataset.edit)));
     on(root, 'click', '[data-hbump]', (e, el) => bumpHabit(el.dataset.hbump));

@@ -71,10 +71,33 @@ function stampLocal(slice, ts) {
   store.commit(s => {
     s.syncMeta ??= { slices: {}, lastPull: 0 };
     for (const k of SLICES[slice]) s.syncMeta.slices[k] = ts;
+    s.syncMeta.pulled ??= {};
+    s.syncMeta.pulled[slice] = true;   // we wrote it, so we are in step with it
   }, { fromRemote: true, silentHistory: true, key: 'syncMeta' });
 }
 const hasContent = slice =>
   SLICES[slice].some(k => { const v = S()[k]; return Array.isArray(v) ? v.length : v && Object.keys(v).length; });
+
+/** Has this device ever taken this slice from the cloud? */
+const hasPulled = slice => !!S().syncMeta?.pulled?.[slice];
+function markPulled(slice) {
+  store.commit(s => {
+    s.syncMeta ??= { slices: {}, lastPull: 0 };
+    s.syncMeta.pulled ??= {};
+    s.syncMeta.pulled[slice] = true;
+  }, { fromRemote: true, silentHistory: true, key: 'syncMeta' });
+}
+
+/** Snapshot whatever is on this device before the first cloud pull replaces it. */
+let backedUp = false;
+function backupBeforeFirstPull() {
+  if (backedUp) return;
+  backedUp = true;
+  try {
+    const raw = localStorage.getItem('gabikos:v1');
+    if (raw && raw.length > 2) localStorage.setItem('gabikos:v1:before-sync', raw);
+  } catch { /* storage may be unavailable; the pull is still correct */ }
+}
 
 /* ─── Boot ─── */
 export async function initSync() {
@@ -97,6 +120,7 @@ export async function initSync() {
     store.subscribe((_s, meta) => {
       if (sync._applying || !sync.enabled) return;
       if (meta?.fromRemote || meta?.key === 'syncMeta') return;
+      if (meta?.seed) return;   // starter content is not an edit worth pushing over real data
       const slice = meta?.key ? sliceOfKey(meta.key) : null;
       if (slice) sync._dirty.add(slice);
       else for (const k of Object.keys(SLICES)) sync._dirty.add(k);  // import/reset/seed
@@ -121,6 +145,15 @@ function subscribeSlice(slice) {
       }
       const body = snap.data();
       const remoteAt = Number(body?.updatedAt) || 0;
+
+      // A device that has never synced cannot hold the newer truth, whatever
+      // its clock says — and onboarding stamps fresh starter content with
+      // "now", which would otherwise beat the real data and then overwrite it.
+      if (!hasPulled(slice)) {
+        backupBeforeFirstPull();
+        applyRemote(slice, body, remoteAt || Date.now());
+        return;
+      }
       if (!remoteAt || remoteAt <= localStamp(slice)) return;  // ours is newer or equal
       applyRemote(slice, body, remoteAt);
     },
@@ -140,6 +173,8 @@ function applyRemote(slice, body, remoteAt) {
       for (const k of SLICES[slice]) if (k in payload) s[k] = payload[k];
       s.syncMeta ??= { slices: {}, lastPull: 0 };
       for (const k of SLICES[slice]) s.syncMeta.slices[k] = remoteAt;
+      s.syncMeta.pulled ??= {};
+      s.syncMeta.pulled[slice] = true;
       s.syncMeta.lastPull = Date.now();
     }, { fromRemote: true, silentHistory: true, key: slice });
   } finally {

@@ -173,6 +173,10 @@ Locally, everything lives under the `gabikos:v1` key in your browser's storage. 
 *also* lives in per-viewer cloud storage that only you can read — private even from anyone you share the
 page with.
 
+**Which copy am I on?** The top bar says *Synced* or *This device only*, and a copy that cannot sync says
+so on the dashboard the first time you open it. The two copies keep entirely separate data — the same app,
+different storage — so pick one as the daily driver rather than splitting your life across both.
+
 ### How sync works
 
 State is split into ten domain slices — tasks, habits, notes, journal, money, and so on — each stored as
@@ -184,6 +188,12 @@ its own document. Two reasons, both practical:
 
 Edits are batched (one write per pause, not per keystroke), pushed when the tab is hidden or closed, and
 every device subscribes to live updates, so a change on one shows up on the other within a second or two.
+
+A device that has never synced always takes the cloud's copy on first connect, whatever its own clock
+says — otherwise a newly set-up phone, whose starter content is stamped "now", would out-rank the real
+data and then overwrite it. Whatever was on the device beforehand is kept under `gabikos:v1:before-sync`
+in case it mattered. Starter content never counts as an edit and is never pushed, and it only ever fills
+collections that are empty.
 
 **Clearing your browser data still deletes the local copy**, so export a backup now and then regardless.
 
