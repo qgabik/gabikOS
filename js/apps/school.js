@@ -544,7 +544,8 @@ registerView('school', {
 
     if (tab === 'today') return head + todayHtml();
     if (tab === 'subjects') return head + subjectsHtml();
-    return head + weekHtml(parity, cfg);
+    const phone = typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches;
+    return head + (phone ? dayStripHtml(parity, cfg, p) : weekHtml(parity, cfg));
   },
 
   onMount(root) {
@@ -571,6 +572,29 @@ registerView('school', {
       newLesson({ day, period });
     });
     on(root, 'click', '[data-week]', (e, el) => navigate('school', { ...params(), week: el.dataset.week }));
+    on(root, 'click', '[data-day]', (e, el) => navigate('school', { ...params(), d: el.dataset.day }));
+
+    // swipe across the day, the way a calendar app does
+    const swipe = root.querySelector('[data-swipe]');
+    if (swipe) {
+      let x0 = null, y0 = null;
+      swipe.addEventListener('touchstart', ev => {
+        const t = ev.changedTouches[0]; x0 = t.clientX; y0 = t.clientY;
+      }, { passive: true });
+      swipe.addEventListener('touchend', ev => {
+        if (x0 == null) return;
+        const t = ev.changedTouches[0];
+        const dx = t.clientX - x0, dy = t.clientY - y0;
+        x0 = null;
+        if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.4) return;  // a scroll, not a swipe
+        const cfg2 = schoolCfg();
+        const days = DAYS.slice(0, cfg2.days || 5).map(d => d.n);
+        const cur = Number(params().d) || (days.includes(new Date().getDay()) ? new Date().getDay() : days[0]);
+        const i = days.indexOf(cur);
+        const next = days[Math.min(days.length - 1, Math.max(0, i + (dx < 0 ? 1 : -1)))];
+        if (next !== cur) navigate('school', { ...params(), d: next });
+      }, { passive: true });
+    }
     on(root, 'click', '[data-hw]', (e, el) => {
       const l = store.find('lessons', el.dataset.hw);
       const subj = subjectOf(l?.subjectId);
@@ -625,6 +649,59 @@ function importIntro() {
       <button class="btn btn--ghost btn--sm" data-periods>${icon('clock')}Set lesson times</button>
       <button class="btn btn--ghost btn--sm" data-howto>${icon('info')}Why not connect to ŠkolaOnline directly?</button>
     </div>`;
+}
+
+/** Phone layout: a day picker and that day as a vertical timeline. */
+function dayStripHtml(parity, cfg, p) {
+  const days = DAYS.slice(0, cfg.days || 5);
+  const todayNum = new Date().getDay();
+  const pick = Number(p.d) || (days.some(d => d.n === todayNum) ? todayNum : days[0].n);
+  const hasAB = lessons().some(l => l.week && l.week !== 'all');
+  const ps = periods();
+  const list = lessonsOn(pick, parity);
+
+  const rows = list.map(l => {
+    const sub = subjectOf(l.subjectId);
+    const span = Math.max(1, Number(l.span) || 1);
+    const from = ps.find(x => Number(x.n) === Number(l.period));
+    const idx = ps.findIndex(x => Number(x.n) === Number(l.period));
+    const to = ps[Math.min(idx + span - 1, ps.length - 1)] || from;
+    return `<button class="dayrow" data-lesson="${l.id}" style="--sc:${esc(sub?.color || 'var(--accent)')}">
+      <span class="dayrow__time"><strong>${esc(from?.start || '')}</strong><small>${esc(to?.end || '')}</small></span>
+      <span class="dayrow__badge">${esc(sub?.short || '?')}</span>
+      <span class="dayrow__main">
+        <strong>${esc(sub?.name || 'Lesson')}</strong>
+        <small>${[l.room || sub?.room, l.teacher || sub?.teacher, span > 1 ? `${span} periods` : '']
+          .filter(Boolean).map(esc).join(' · ') || `Period ${l.period}`}</small>
+      </span>
+      <span class="dayrow__per">${l.period}.</span>
+    </button>`;
+  }).join('');
+
+  return `${hasAB ? `<div class="filterbar">
+      <div class="seg grow" data-weekpick>
+        <button class="${parity === 'a' ? 'is-on' : ''}" data-week="a">Week A</button>
+        <button class="${parity === 'b' ? 'is-on' : ''}" data-week="b">Week B</button>
+      </div>
+      ${parity === weekParity() ? '<span class="chip chip--accent">now</span>' : ''}
+    </div>` : ''}
+
+    <div class="daystrip" data-daystrip>
+      ${days.map(d => {
+        const n = lessonsOn(d.n, parity).length;
+        return `<button class="daychip ${d.n === pick ? 'is-on' : ''} ${d.n === todayNum ? 'is-today' : ''}"
+          data-day="${d.n}">
+          <span class="daychip__d">${esc(d.cs.slice(0, 2))}</span>
+          <span class="daychip__n">${n || '–'}</span>
+        </button>`;
+      }).join('')}
+    </div>
+
+    <div class="card" data-swipe>
+      ${list.length ? `<div class="dayrows">${rows}</div>`
+        : emptyState('coffee', 'Nothing on', `${DAYS.find(d => d.n === pick)?.cs} is free in ${parityLabel(parity).replace('Week ', 'week ')}.`)}
+    </div>
+    <p class="dim tc mt-3" style="font-size:11.6px">Swipe left or right to change day</p>`;
 }
 
 function weekHtml(parity, cfg) {

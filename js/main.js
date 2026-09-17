@@ -73,6 +73,27 @@ function renderNav() {
     </div>`).join('');
 }
 
+const DEFAULT_TABS = ['dashboard', 'tasks', 'school', 'habits'];
+
+function renderTabs() {
+  const bar = qs('#tabbar');
+  if (!bar) return;
+  const want = (settings().mobileTabs?.length ? settings().mobileTabs : DEFAULT_TABS).slice(0, 4);
+  const views = want.map(id => navViews().find(v => v.id === id)).filter(Boolean);
+  const cur = currentView();
+
+  bar.innerHTML = views.map(v => {
+    const badge = v.badge?.();
+    return `<button class="tab ${cur === v.id ? 'is-on' : ''}" data-nav="${v.id}"
+      style="--hue:${esc(settings().colorfulNav ? (v.hue || hueFor(v.id)) : 'var(--accent)')}">
+      <span class="tab__ic">${icon(v.icon || 'chevronRight')}${badge ? `<i class="tab__dot"></i>` : ''}</span>
+      <span class="tab__lbl">${esc(v.title)}</span>
+    </button>`;
+  }).join('') + `<button class="tab ${views.every(v => v.id !== cur) ? 'is-on' : ''}" id="tabMore">
+      <span class="tab__ic">${icon('grid')}</span><span class="tab__lbl">More</span>
+    </button>`;
+}
+
 function renderChrome() {
   const p = profile();
   qs('#navName').textContent = p.name || 'Gabik';
@@ -84,7 +105,7 @@ function renderChrome() {
   paintSync();
   qs('#focusBtn').innerHTML = icon('timer');
   qs('#collapseBtn').innerHTML = icon('panelLeft');
-  qs('#menuBtn').innerHTML = icon('list');
+  if (qs('#menuBtn')) qs('#menuBtn').innerHTML = icon('list');
   qs('#modalClose').innerHTML = icon('x');
 }
 
@@ -266,7 +287,7 @@ async function boot() {
 
   // chrome events
   qs('#collapseBtn').addEventListener('click', toggleCollapse);
-  qs('#menuBtn').addEventListener('click', openSidebar);
+  qs('#menuBtn')?.addEventListener('click', openSidebar);
   qs('#scrim').addEventListener('click', closeSidebar);
   qs('#searchBtn').addEventListener('click', () => openPalette());
   qs('#quickAddBtn').addEventListener('click', quickCreate);
@@ -284,16 +305,23 @@ async function boot() {
   initFocusHud();
 
   qs('#syncChip')?.addEventListener('click', () => navigate('settings', { tab: 'data' }));
+  on(qs('#tabbar'), 'click', '[data-nav]', (e, el) => navigate(el.dataset.nav));
+  qs('#tabbar').addEventListener('click', e => { if (e.target.closest('#tabMore')) openSidebar(); });
+
+  // the timetable lays out differently on a phone, so re-render when the
+  // breakpoint is actually crossed (not on every pixel of a resize)
+  const phone = window.matchMedia('(max-width: 720px)');
+  phone.addEventListener('change', () => render());
   onSyncChange(() => { paintSync(); if (currentView() === 'settings') render(); });
   initSync();                                   // resolves on its own; never blocks first paint
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
   addEventListener('pagehide', flush);
 
   // keep nav badges + chrome in sync with state
-  const syncChrome = debounce(() => { renderNav(); renderChrome(); }, 80);
+  const syncChrome = debounce(() => { renderNav(); renderChrome(); renderTabs(); }, 80);
   store.subscribe(syncChrome);
-  document.addEventListener('gabikos:chrome', () => { renderNav(); renderChrome(); });
-  onRender(() => { renderNav(); renderChrome(); });
+  document.addEventListener('gabikos:chrome', () => { renderNav(); renderChrome(); renderTabs(); });
+  onRender(() => { renderNav(); renderChrome(); renderTabs(); });
 
   window.addEventListener('gabikos:save-error', () => {
     toast('Storage is full — export a backup and clear some old data', 'bad', { duration: 9000 });
@@ -302,13 +330,16 @@ async function boot() {
   startRouter();
   renderNav();
   renderChrome();
+  renderTabs();
 
-  // reveal
+  // Reveal as soon as the first view is on screen. This used to wait a
+  // flat 620ms for the splash animation, which was most of the time to
+  // usable on a phone — the DOM is ready in about a third of that.
   const bootEl = qs('#boot');
-  await new Promise(r => setTimeout(r, 620));
-  bootEl.classList.add('boot--out');
   shell.hidden = false;
-  setTimeout(() => bootEl.remove(), 520);
+  await new Promise(r => requestAnimationFrame(r));
+  bootEl.classList.add('boot--out');
+  setTimeout(() => bootEl.remove(), 240);
 
   if (!profile().onboarded) {
     await onboard();
@@ -316,7 +347,10 @@ async function boot() {
     render();
     renderNav();
     renderChrome();
-    toast('Press Ctrl + K any time to get anywhere fast', 'info', { duration: 6000 });
+    const touch = matchMedia('(pointer: coarse)').matches;
+    toast(touch ? 'Tap the bar at the bottom to move around — “More” has everything else'
+                : 'Press Ctrl + K any time to get anywhere fast',
+      'info', { duration: 6000 });
   }
 }
 

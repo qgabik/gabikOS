@@ -59,6 +59,12 @@ Nothing here holds secrets — it is all client-side code, and your data never l
 
 ## On your phone
 
+Navigation lives in a bottom bar within thumb reach — Dashboard, Tasks, School, Habits and *More* —
+so switching module is one tap instead of hamburger → drawer → tap. The timetable shows one day at a
+time with a day picker (swipe left or right to move between days) rather than a five-column grid you
+have to scroll sideways.
+
+
 Open the site and install it to the home screen — it then runs full-screen with its own icon, no
 browser bars, exactly like a native app:
 

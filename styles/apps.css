@@ -673,3 +673,68 @@
 .callout-inline .check__box{margin-top:2px}
 .callout-inline small{font-size:11.6px;line-height:1.5;display:block;margin-top:3px}
 .tt__ab--both{background:var(--text-3);font-size:10px;line-height:1;padding:2px 4px}
+
+/* ─── Phone timetable: one day at a time ─── */
+.daystrip{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin-bottom:14px}
+.daychip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  padding:9px 2px;border-radius:var(--r-sm);border:1.5px solid var(--line);background:var(--surface-2);
+  color:var(--text-2);transition:all var(--t-fast);min-height:52px}
+.daychip:active{transform:scale(.97)}
+.daychip.is-on{background:var(--accent-soft);border-color:var(--accent);color:var(--text)}
+.daychip.is-today .daychip__d::after{content:'';display:block;width:4px;height:4px;border-radius:50%;
+  background:var(--accent);margin:2px auto 0}
+.daychip__d{font-size:12.4px;font-weight:700;letter-spacing:.01em}
+.daychip__n{font-size:10.6px;color:var(--text-3);font-weight:600}
+.daychip.is-on .daychip__n{color:var(--accent)}
+
+.dayrows{display:flex;flex-direction:column}
+.dayrow{display:flex;align-items:center;gap:11px;width:100%;padding:12px 14px;text-align:left;
+  border-bottom:1px solid var(--line);position:relative;transition:background var(--t-fast)}
+.dayrow:last-child{border-bottom:0}
+.dayrow:active{background:var(--hover)}
+.dayrow::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--sc)}
+.dayrow__time{display:flex;flex-direction:column;align-items:center;min-width:46px;flex:none;line-height:1.25}
+.dayrow__time strong{font-size:13.6px;font-weight:700;font-variant-numeric:tabular-nums}
+.dayrow__time small{font-size:10.6px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.dayrow__badge{width:38px;height:38px;flex:none;border-radius:11px;display:grid;place-items:center;
+  font-size:11.6px;font-weight:800;color:#fff;background:var(--sc)}
+.dayrow__main{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.35}
+.dayrow__main strong{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dayrow__main small{font-size:11.8px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dayrow__per{font-size:11.6px;color:var(--text-3);font-weight:700;flex:none}
+
+/* ─── Phone: tighten the vertical budget ─────────────────────────
+   A phone screen is ~2.5 cards tall. The hero and the stat row must
+   not spend all of it before the first real content. */
+@media (max-width:640px){
+  .hero{padding:16px 16px 18px;gap:12px;flex-wrap:nowrap;align-items:flex-start}
+  .hero__txt{min-width:0;flex:1}
+  .hero__date{font-size:11px;margin-bottom:4px}
+  .hero__hi{font-size:1.32rem}
+  .hero__sub{font-size:13px;margin-top:5px}
+  .hero__actions{margin-top:13px;gap:7px}
+  .hero__actions .btn{flex:1 1 auto;min-width:0;padding:0 11px;font-size:12.8px}
+  .hero__score{flex:none;gap:4px}
+  .hero__score .ring--lg svg{width:72px;height:72px}
+  .ring--lg .ring__txt--lg{font-size:18px}
+  .ring--lg .ring__txt--lg small{font-size:10px}
+  .hero__scorelabel{font-size:10.2px;max-width:76px;text-align:center;line-height:1.25}
+
+  /* two tiles per row, not one — the default min width missed by 2px */
+  .grid--stat{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .stat{padding:13px}
+  .stat__value{font-size:21px}
+  .stat__value small{font-size:11px}
+  .stat__label{font-size:10.6px}
+  .stat__sub{font-size:11px}
+  .stat__icon{width:26px;height:26px}
+  .stat__icon .ic{width:14px;height:14px}
+
+  .grid{gap:12px}
+  .dash{gap:12px}
+  .dash__col{gap:12px}
+  .page-head{margin-bottom:16px;gap:12px}
+  .card__head{padding:13px 15px}
+  .card__body{padding:15px}
+  .section-title{margin:20px 0 11px}
+}

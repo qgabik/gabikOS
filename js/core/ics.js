@@ -141,8 +141,11 @@ function teacherFrom(e) {
   if (!d) return '';
   const labelled = d.match(/(?:u[čc]itel|teacher|vyu[čc]uj[íi]c[íi]|lektor)\s*[:\-]\s*([^\n;]+)/i);
   if (labelled) return labelled[1].trim();
+  // Fall back to a bare first line only — a "Label: value" line is some
+  // other field (an abbreviation, a class, a note), not a person's name.
   const first = d.split('\n')[0].trim();
-  return first.length <= 40 ? first : '';
+  if (!first || first.length > 40 || /^[\w\sáčďéěíňóřšťúůýž]{2,20}\s*:/i.test(first)) return '';
+  return first;
 }
 
 /** ISO-8601 week number — Czech timetables alternate on this. */
