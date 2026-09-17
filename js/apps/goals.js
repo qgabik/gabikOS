@@ -88,7 +88,7 @@ registerView('goals', {
         <header class="goal__head">
           <div class="goal__ring">
             <svg viewBox="0 0 44 44"><circle class="ring__bg" cx="22" cy="22" r="19" stroke-width="4"/>
-              <circle class="ring__fg" cx="22" cy="22" r="19" stroke-width="4" stroke="${esc(g.color || 'var(--accent)')}"
+              <circle class="ring__fg" cx="22" cy="22" r="19" stroke-width="4" style="stroke:${esc(g.color || 'var(--accent)')}"
                 stroke-dasharray="119.4" stroke-dashoffset="${119.4 - (119.4 * p) / 100}" stroke-linecap="round"
                 transform="rotate(-90 22 22)"/></svg>
             <span>${p}%</span>

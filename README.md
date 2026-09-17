@@ -36,6 +36,9 @@ The top bar always says which: *Synced*, *Sign in to sync*, or *This device only
 2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql), **Run**. That creates the
    state table, turns on row-level security so each row is readable only by the user who owns it, and
    enables realtime.
+   Then run [`supabase/health-inbox.sql`](supabase/health-inbox.sql) the same way, which adds the two
+   tables the Apple Health bridge posts into. Skip it and everything else still works; only the
+   automatic health route needs it.
 3. **Project Settings → API**: copy the *Project URL* and the *publishable (anon)* key into
    [`js/config.js`](js/config.js) — or paste them into the app under *Settings → Data → Use my own project*,
    which keeps them in that browser only.
@@ -88,7 +91,7 @@ home indicator when it runs installed.
 | **Notes** | Markdown editor with live preview, folders, tags, pinning, `.md` export |
 | **Journal** | Daily entries, mood and energy tracking, gratitude, a consistency heatmap |
 | **Goals** | Outcomes with milestones, progress rings and deadlines |
-| **Health** | Workouts, weight, sleep, steps, hydration — with trend charts |
+| **Health** | Sleep times, steps, workouts, weight, hydration — with **Apple Health** feeding steps and sleep in from your iPhone |
 | **Money** | Income and expenses, budgets, category donut, six-month trend |
 | **School** | Timetable with numbered periods, alternating weeks, block lessons, free-period gaps |
 | **Builder** | **Create your own trackers** — see below |
@@ -107,6 +110,41 @@ blue, habits green, money gold — so the sidebar reads as a set of places rathe
 
 Under **Settings → Appearance** there is also a text-size slider (85–130%, scaling the whole interface)
 and compact / normal / roomy row spacing.
+
+## Apple Health
+
+**A website cannot read HealthKit.** Safari gives web pages no access to the Health app at all, and no
+amount of code changes that — it takes a native iOS app. What iOS *does* give you is **Shortcuts**, which
+can read Health and hand the numbers over. GabikOS meets it there, and *Health → Set up* walks through it
+on the phone with your own key and URL already filled in.
+
+Two routes, both built on one Shortcut:
+
+**Automatic** — the Shortcut posts straight to your Supabase project, so the readings land on every device
+whether or not GabikOS is open. Needs an account and `supabase/health-inbox.sql`. The Shortcut cannot sign
+in, so it carries a long random key instead; the key can add readings to your account and do nothing else —
+it cannot read anything back, and it cannot touch any other table. Pair it with a **Time of Day** automation
+and you never think about it again.
+
+**Simple link** — the Shortcut opens GabikOS with the numbers in the address
+(`#/health?ah=1&date=…&steps=…&bed=…&wake=…`); GabikOS takes them in and tidies the address afterwards. No
+account, nothing to install, but the page has to open for the values to land.
+
+For filling in the past there is a third way: Health → your picture → **Export All Health Data**, unzip it,
+and hand `export.xml` to the import tab. Step counts are totalled per day and sleep segments are added up
+per night, with the *In Bed* records left out so lying awake does not count as sleeping.
+
+**Anything you type yourself wins.** A reading from the phone fills what is empty and updates what it wrote
+before, but it never overwrites a number you set by hand — a value's source is remembered per field.
+
+### Sleep is a time, not a number
+
+A night is recorded as **when you went to bed and when you woke up**, and the duration follows from that.
+Tap *Going to bed* in the evening and *Just woke up* in the morning and there is nothing else to do; a
+bedtime stamped after 18:00 is filed under the following morning, because that is the night it belongs to.
+The Sleep tab keeps fourteen nights: hours slept against your goal, your usual bedtime and wake-up
+(averaged around the evening, so times either side of midnight do not cancel out), and how far ahead or
+behind your goal the last seven nights leave you.
 
 ## School timetables
 

@@ -9,7 +9,7 @@ import { qs, qsa, on, toast, openForm, modal, confirmDialog, closeMenu } from '.
 import { initPalette, openPalette, closePalette, isOpen as paletteOpen } from './core/palette.js';
 import { initSync, sync, syncLabel, onSyncChange, syncNow, flush } from './core/sync.js';
 import { watchAuth, openAuth, doSignOut } from './apps/account.js';
-import { esc, initials, plural, today, debounce } from './core/util.js';
+import { esc, initials, plural, today, debounce, throttle } from './core/util.js';
 
 /* ─── Load every module (each registers its own view) ─── */
 import './apps/dashboard.js';
@@ -32,7 +32,7 @@ import { newNote } from './apps/notes.js';
 import { newEvent } from './apps/calendar.js';
 import { newLesson } from './apps/school.js';
 import { newGoal } from './apps/goals.js';
-import { newWorkout } from './apps/health.js';
+import { newWorkout, consumeHealthLink, syncAppleHealth, openHealthBridge } from './apps/health.js';
 import { newTransaction } from './apps/finance.js';
 import { writeEntry } from './apps/journal.js';
 import { quickStart, initFocusHud } from './apps/focus.js';
@@ -74,7 +74,7 @@ function renderNav() {
     </div>`).join('');
 }
 
-const DEFAULT_TABS = ['dashboard', 'tasks', 'school', 'habits'];
+const DEFAULT_TABS = ['dashboard', 'tasks', 'school', 'health'];
 
 function renderTabs() {
   const bar = qs('#tabbar');
@@ -133,6 +133,7 @@ function buildCommands() {
     { title: 'Add a lesson', icon: 'graduation', sub: 'Build your timetable', meta: 'create', keywords: 'school timetable rozvrh lesson class subject', run: () => newLesson() },
     { title: 'New goal', icon: 'target', sub: 'Something bigger', meta: 'create', keywords: 'objective ambition', run: newGoal },
     { title: 'Log a workout', icon: 'dumbbell', sub: 'Training session', meta: 'create', keywords: 'gym exercise fitness', run: () => newWorkout() },
+    { title: 'Connect Apple Health', icon: 'heart', sub: 'Let your iPhone send steps and sleep', meta: 'system', keywords: 'apple health iphone steps sleep shortcuts healthkit fitness', run: () => openHealthBridge() },
     { title: 'Record a transaction', icon: 'wallet', sub: 'Money in or out', meta: 'create', keywords: 'expense income spend', run: () => newTransaction({ date: today() }) },
     { title: 'Build a new tracker', icon: 'layers', sub: 'Create your own module', meta: 'create', keywords: 'custom collection database make', run: () => newCollection() },
     { title: 'Toggle dark / light', icon: 'sun', sub: 'Switch the theme', meta: 'system', keywords: 'theme dark light appearance', run: () => { toggleTheme(); renderChrome(); toast(`${document.documentElement.dataset.theme === 'light' ? 'Light' : 'Dark'} mode`, 'info', { duration: 1400 }); } },
@@ -280,6 +281,12 @@ function onboard() {
 /* ─── Boot ─── */
 async function boot() {
   store.load();
+
+  // A Shortcut may have opened GabikOS carrying today's steps and sleep in
+  // the address. Take them in before the first render so the numbers are
+  // already there, and before the router reads a hash that still has them.
+  consumeHealthLink();
+
   applyTheme();
   watchSystemTheme();
   registerCollections();
@@ -320,6 +327,14 @@ async function boot() {
   watchAuth();                                  // a token expiring elsewhere must not look like a bug
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
   addEventListener('pagehide', flush);
+
+  // The same link, arriving while GabikOS is already open on the phone.
+  addEventListener('hashchange', () => { if (consumeHealthLink()?.days) render(); });
+
+  // And the readings the phone posted to the account on its own.
+  const pullHealth = throttle(() => { if (settings().health?.linked) syncAppleHealth({ quiet: true }); }, 60_000);
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullHealth(); });
+  setTimeout(pullHealth, 2500);
 
   // keep nav badges + chrome in sync with state
   const syncChrome = debounce(() => { renderNav(); renderChrome(); renderTabs(); }, 80);

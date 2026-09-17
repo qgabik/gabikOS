@@ -1,29 +1,220 @@
 /* ═══════════════════════════════════════════════════════════════
-   GabikOS — Health: workouts, body metrics, water, sleep, steps
+   GabikOS — Health: sleep, steps, training, body
+
+   Steps and sleep come from the iPhone through the Apple Health
+   bridge (core/health-link.js). Anything typed by hand outranks them:
+   a reading the phone sends never overwrites a number you set
+   yourself, it only fills what is still empty.
    ═══════════════════════════════════════════════════════════════ */
 import { store, S, settings } from '../core/store.js';
-import { registerView, navigate, render, params } from '../core/router.js';
+import { registerView, navigate, render, refreshIf } from '../core/router.js';
 import { icon } from '../core/icons.js';
-import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
+import { openForm, confirmDialog, toast, on, emptyState, pageHead, statTile, modal } from '../core/ui.js';
 import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, clamp,
-         plural, dayName, diffDays, parseISO } from '../core/util.js';
-import { lineChart, barChart, sparkline } from '../core/charts.js';
+         plural, dayName, parseISO, download, pickFile } from '../core/util.js';
+import { lineChart, barChart } from '../core/charts.js';
+import { readLink, stripLink, normalizeSample, minutesBetween, clockMins,
+         healthKey, pullInbox, cloudReady, cloudRecipe, cloudPush, linkTemplate,
+         parseAppleExport, parsePasted } from '../core/health-link.js';
+
+/* ─── Small formatters ─── */
+const pad2 = n => String(n).padStart(2, '0');
+const nowClock = () => { const d = new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const fmtSleep = mins => {
+  if (mins == null) return '—';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h ? `${h}h ${pad2(m)}m` : `${m}m`;      // "28m short", not "0h 28m short"
+};
+const clockLabel = c => (c ? c : '—');
+/** A night belongs to the morning it ends on, the way people tell it. */
+const nightOf = (d = new Date()) => (d.getHours() >= 18 ? addDaysISO(today(), 1) : today());
 
 /* ─── Daily metrics ─── */
 export const metricFor = (date = today()) => S().metrics.find(m => m.date === date);
+
+/** Sleep is kept in minutes; the old `sleep` hours field still reads. */
+export function sleepMinsOf(m) {
+  if (!m) return null;
+  if (m.sleepMins != null) return m.sleepMins;
+  if (m.bedtime && m.wake) return minutesBetween(m.bedtime, m.wake);
+  if (m.sleep != null) return Math.round(m.sleep * 60);
+  return null;
+}
+
+/** Keep the derived fields honest whatever route wrote the patch. */
+function derive(next) {
+  if (next.bedtime && next.wake && next.sleepMins == null) next.sleepMins = minutesBetween(next.bedtime, next.wake);
+  if (next.sleepMins != null) next.sleep = round(next.sleepMins / 60, 2);
+  else if (next.sleep != null && next.sleepMins == null) next.sleepMins = Math.round(next.sleep * 60);
+  return next;
+}
+
 export function setMetric(patch, date = today()) {
   const existing = metricFor(date);
-  if (existing) store.update('metrics', existing.id, patch);
-  else store.add('metrics', { date, ...patch });
+  if (existing) {
+    const merged = derive({ ...existing, ...patch });
+    store.update('metrics', existing.id, merged);
+  } else {
+    store.add('metrics', derive({ date, ...patch }));
+  }
 }
+
+/** Mark the fields in a patch as typed by hand, so the phone leaves them be. */
+function setManual(patch, date = today()) {
+  const cur = metricFor(date) || {};
+  const src = { ...(cur.src || {}) };
+  for (const k of Object.keys(patch)) if (patch[k] != null && patch[k] !== '') src[k] = 'manual';
+  setMetric({ ...patch, src }, date);
+}
+
 export const waterToday = () => metricFor()?.water || 0;
 export function addWater(n = 1) {
   const goal = settings().goals.water || 8;
-  const next = clamp((waterToday()) + n, 0, 30);
+  const next = clamp(waterToday() + n, 0, 30);
   setMetric({ water: next });
   if (next === goal) toast('Water goal reached 💧', 'ok');
   render();
 }
+
+/* ═══ Apple Health ingest ═════════════════════════════════════ */
+
+const hs = () => settings().health || {};
+const AUTO_FIELDS = {
+  steps: 'steps', sleepMinutes: 'sleepMins', bedtime: 'bedtime', wake: 'wake',
+  restingHr: 'restingHr', weight: 'weight', activeEnergy: 'activeEnergy',
+  exerciseMinutes: 'exerciseMinutes',
+};
+
+/**
+ * Fold readings into the daily metrics. A field you typed yourself is
+ * never overwritten — the phone only fills the blanks and updates what
+ * it wrote before.
+ */
+export function ingestSamples(samples, source = 'apple') {
+  let days = 0, values = 0;
+  for (const raw of samples || []) {
+    const s = normalizeSample(raw);
+    if (!s) continue;
+    const cur = metricFor(s.date) || {};
+    const src = { ...(cur.src || {}) };
+    const patch = {};
+    for (const [from, to] of Object.entries(AUTO_FIELDS)) {
+      const v = s[from];
+      if (v == null) continue;
+      if (src[to] === 'manual' && cur[to] != null) continue;
+      if (cur[to] === v) continue;
+      patch[to] = v;
+      src[to] = source;
+      values++;
+    }
+    if (!Object.keys(patch).length) continue;
+    if (patch.sleepMins != null || patch.bedtime || patch.wake) patch.sleep = undefined;
+    setMetric(derive({ ...cur, ...patch, src }), s.date);
+    days++;
+  }
+  if (days) {
+    store.setSetting('health.lastAt', Date.now());
+    store.setSetting('health.lastSource', source);
+    store.setSetting('health.lastDays', days);
+  }
+  return { days, values };
+}
+
+/** Values handed over in the address bar by a Shortcut. Runs once, at boot. */
+export function consumeHealthLink() {
+  let samples = null;
+  try { samples = readLink(); } catch { return null; }
+  if (!samples) return null;
+  const res = ingestSamples(samples, 'apple');
+  try { stripLink(); } catch { /* an old browser keeps the URL; harmless */ }
+  if (res.days) {
+    store.setSetting('health.linked', true);
+    store.log('heart', `Apple Health · ${plural(res.days, 'day')} received`, 'health');
+  }
+  return res;
+}
+
+let pulling = false;
+/** Pick up whatever the phone has posted to the account since last time. */
+export async function syncAppleHealth({ quiet = true } = {}) {
+  if (pulling) return null;
+  if (!(await cloudReady())) {
+    if (!quiet) toast('Sign in first — the cloud route needs your account.', 'warn');
+    return null;
+  }
+  pulling = true;
+  try {
+    const rows = await pullInbox(90);
+    const res = ingestSamples(rows, 'apple');
+    if (res.days) {
+      store.setSetting('health.linked', true);
+      refreshIf('health', 'dashboard');
+      if (!quiet) toast(`Apple Health · ${plural(res.days, 'day')} updated`, 'ok');
+    } else if (!quiet) {
+      toast(rows.length ? 'Already up to date' : 'Nothing from the phone yet', rows.length ? 'ok' : 'warn');
+    }
+    return res;
+  } catch (err) {
+    console.warn('[GabikOS] Apple Health pull failed:', err);
+    if (!quiet) toast(healthError(err), 'bad');
+    return null;
+  } finally { pulling = false; }
+}
+
+function healthError(err) {
+  const raw = String(err?.message || err || '');
+  if (/does not exist|schema cache|PGRST20\d/i.test(raw))
+    return 'The health tables are missing — run supabase/health-inbox.sql in Supabase first.';
+  if (/not recognised|28000/i.test(raw)) return 'That key is not on this account any more. Make a new one.';
+  if (/failed to fetch|network/i.test(raw)) return 'Could not reach the server. Check your connection.';
+  return raw || 'Something went wrong.';
+}
+
+/* ═══ Sleep ═══════════════════════════════════════════════════ */
+
+/** One tap at bedtime, one on waking — the whole point of "my sleep time". */
+function stampBed() {
+  const date = nightOf();
+  setManual({ bedtime: nowClock() }, date);
+  toast(`Bedtime ${nowClock()} — sleep well`, 'ok');
+  render();
+}
+function stampWake() {
+  const m = metricFor() || {};
+  setManual({ wake: nowClock() }, today());
+  const mins = sleepMinsOf(metricFor());
+  toast(m.bedtime ? `${fmtSleep(mins)} of sleep. Good morning.` : `Awake at ${nowClock()}`, 'ok');
+  render();
+}
+
+async function editNight(date = today()) {
+  const m = metricFor(date) || {};
+  const v = await openForm({
+    title: `Sleep · night of ${fmtDate(addDaysISO(date, -1), { absolute: true })} → ${fmtDate(date, { absolute: true })}`,
+    size: 'wide', submitLabel: 'Save',
+    fields: [
+      { name: 'bedtime', label: 'Went to bed', type: 'time', half: true, value: m.bedtime || '' },
+      { name: 'wake', label: 'Woke up', type: 'time', half: true, value: m.wake || '' },
+      { name: 'quality', label: 'How did you sleep?', type: 'rating', half: true, value: m.quality },
+      { name: 'restingHr', label: 'Resting HR (bpm)', type: 'number', half: true, min: 0, step: 1, value: m.restingHr },
+      { name: 'sleepNote', label: 'Notes', type: 'text', placeholder: 'woke up twice, phone in the room…', value: m.sleepNote },
+    ],
+  });
+  if (!v) return;
+  const patch = { ...v };
+  patch.sleepMins = (patch.bedtime && patch.wake) ? minutesBetween(patch.bedtime, patch.wake) : null;
+  setManual(patch, date);
+  toast('Night saved', 'ok');
+  render();
+}
+
+const nights = (days = 14) => Array.from({ length: days }, (_, i) => {
+  const d = addDaysISO(today(), -(days - 1 - i));
+  const m = metricFor(d);
+  return { date: d, m, mins: sleepMinsOf(m) };
+});
+
+/* ═══ Workouts ════════════════════════════════════════════════ */
 
 const WORKOUT_TYPES = ['Strength', 'Run', 'Cycle', 'Swim', 'Walk', 'Yoga', 'HIIT', 'Sport', 'Climb', 'Other'];
 
@@ -53,8 +244,10 @@ async function logDay(date = today()) {
   const v = await openForm({
     title: `Daily check-in · ${fmtDate(date)}`, size: 'wide', submitLabel: 'Save',
     fields: [
+      { name: 'bedtime', label: 'Went to bed', type: 'time', half: true, value: m.bedtime || '',
+        hint: 'the evening before this day' },
+      { name: 'wake', label: 'Woke up', type: 'time', half: true, value: m.wake || '' },
       { name: 'weight', label: 'Weight (kg)', type: 'number', half: true, min: 0, step: 0.1, value: m.weight },
-      { name: 'sleep', label: 'Sleep (hours)', type: 'number', half: true, min: 0, max: 24, step: 0.25, value: m.sleep },
       { name: 'steps', label: 'Steps', type: 'number', half: true, min: 0, step: 100, value: m.steps },
       { name: 'water', label: 'Water (glasses)', type: 'number', half: true, min: 0, step: 1, value: m.water },
       { name: 'restingHr', label: 'Resting HR (bpm)', type: 'number', half: true, min: 0, step: 1, value: m.restingHr },
@@ -62,7 +255,8 @@ async function logDay(date = today()) {
     ],
   });
   if (!v) return;
-  setMetric(v, date);
+  v.sleepMins = (v.bedtime && v.wake) ? minutesBetween(v.bedtime, v.wake) : (m.sleepMins ?? null);
+  setManual(v, date);
   toast('Day logged', 'ok');
   render();
 }
@@ -77,38 +271,359 @@ const series = (key, days = 30) => {
   return out;
 };
 
+/* ═══ Bits of chrome ══════════════════════════════════════════ */
+
+const ring = (value, goal, color, label, sub) => {
+  const p = pct(value || 0, goal || 1);
+  const c = 2 * Math.PI * 34;
+  return `<div class="hring">
+    <div class="ring">
+      <svg viewBox="0 0 80 80" width="80" height="80">
+        <circle class="ring__bg" cx="40" cy="40" r="34" stroke-width="8"/>
+        <circle class="ring__fg" cx="40" cy="40" r="34" stroke-width="8" style="stroke:${esc(color)}"
+          stroke-dasharray="${round(c, 1)}" stroke-dashoffset="${round(c - (c * p) / 100, 1)}"/>
+      </svg>
+      <div class="ring__txt" style="font-size:13px">${p}<small style="font-size:9px">%</small></div>
+    </div>
+    <div class="hring__meta">
+      <strong>${label}</strong>
+      <span class="dim">${sub}</span>
+    </div>
+  </div>`;
+};
+
+/** The one-line truth about where today's steps and sleep came from. */
+function bridgeStrip() {
+  const h = hs();
+  const m = metricFor() || {};
+  const auto = m.src?.steps === 'apple' || m.src?.sleepMins === 'apple';
+  const when = h.lastAt ? fmtDate(new Date(h.lastAt).toISOString().slice(0, 10)) : '';
+  return `<div class="card card--pad mb-4 bridge ${h.linked ? 'is-on' : ''}">
+    <div class="row gap-3 row--wrap">
+      <span class="stat__icon">${icon(h.linked ? 'heart' : 'link')}</span>
+      <div class="grow" style="min-width:190px">
+        <h3 style="font-size:14px">${h.linked ? 'Apple Health is linked' : 'Bring in Apple Health'}</h3>
+        <p class="dim mt-1" style="font-size:12.5px">
+          ${h.linked
+            ? (auto ? 'Today’s steps and sleep came from your iPhone.'
+                    : `Waiting for today’s reading${when ? ` · last one ${esc(when.toLowerCase())}` : ''}.`)
+            : 'Let your iPhone send today’s steps and sleep here by itself.'}
+        </p>
+      </div>
+      <div class="row gap-2">
+        ${h.linked ? `<button class="btn btn--sm" data-ah-sync>${icon('refresh')}<span class="hide-sm">Refresh</span></button>` : ''}
+        <button class="btn btn--sm ${h.linked ? '' : 'btn--primary'}" data-ah-setup>${icon('settings')}${h.linked ? 'Settings' : 'Set up'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ═══ Apple Health setup ══════════════════════════════════════ */
+
+const copyable = (id, label, value, note = '') => `
+  <div class="ah__field">
+    <label>${esc(label)}</label>
+    <div class="row gap-2">
+      <input class="input mono" id="${id}" readonly value="${esc(value)}" style="font-size:12px">
+      <button class="btn btn--sm" data-copy="${id}">${icon('copy')}</button>
+    </div>
+    ${note ? `<p class="dim mt-1" style="font-size:11.5px">${note}</p>` : ''}
+  </div>`;
+
+async function openBridge() {
+  const base = location.origin + location.pathname;
+  const link = linkTemplate(base);
+  let key = null, cloud = false;
+  try { cloud = await cloudReady(); if (cloud) key = (await healthKey())?.key || null; } catch { /* shown below */ }
+
+  const recipe = cloudRecipe(key);
+  const body = `
+  <div class="ah">
+    <div class="callout mb-4">
+      <p style="font-size:13px;line-height:1.65">
+        Safari cannot open the Health app — Apple gives no website access to it, and nothing
+        GabikOS does can change that. What the iPhone <em>does</em> allow is <strong>Shortcuts</strong>:
+        it can read Health and hand the numbers to GabikOS. Set one up once and your steps
+        and sleep arrive on their own.
+      </p>
+    </div>
+
+    <div class="seg mb-4" id="ahTabs">
+      <button class="is-on" data-ahtab="auto">Automatic</button>
+      <button data-ahtab="link">Simple link</button>
+      <button data-ahtab="import">Import a file</button>
+    </div>
+
+    <div data-ahpane="auto">
+      ${cloud ? `
+        <p class="dim mb-3" style="font-size:13px">The Shortcut posts straight to your account, so the numbers
+          land on every device even if GabikOS is closed. Runs in the background once you add the automation.</p>
+        ${key
+          ? copyable('ahKey', 'Your phone key', key, 'Treat it like a password. It can add readings to your account and nothing else.')
+          : `<button class="btn btn--primary mb-3" data-ah-key>${icon('sparkles')}Create my phone key</button>`}
+        ${key ? `
+        ${copyable('ahUrl', 'URL', recipe.url)}
+        ${copyable('ahHead', 'Headers', `apikey: ${recipe.headers.apikey}`, 'Add a second header <code>Authorization</code> with <code>Bearer</code> and the same value, and <code>Content-Type: application/json</code>.')}
+        <div class="ah__steps">
+          <h4>On your iPhone</h4>
+          <ol>
+            <li>Open <strong>Shortcuts</strong> → <strong>+</strong> → search <strong>Find Health Samples</strong>.</li>
+            <li>Type <strong>Steps</strong>, and set the date range to <strong>Today</strong>. Add <strong>Calculate Statistics</strong> → <strong>Sum</strong>. Rename the result <em>Steps</em>.</li>
+            <li>Add a second <strong>Find Health Samples</strong> for <strong>Sleep Analysis</strong>, range <strong>Today</strong>, then <strong>Calculate Statistics</strong> → <strong>Sum</strong> of <strong>Duration</strong> in <strong>minutes</strong>. Rename it <em>Sleep</em>.</li>
+            <li>Add <strong>Get Contents of URL</strong>. Paste the URL above, set <strong>Method</strong> to <strong>POST</strong>, add the three headers, and set <strong>Request Body</strong> to <strong>JSON</strong> with these keys:</li>
+          </ol>
+          <pre class="ah__code mono">p_key      (Text)   ${esc(key)}
+p_day      (Text)   Current Date, formatted yyyy-MM-dd
+p_steps    (Number) Steps
+p_sleep_minutes (Number) Sleep</pre>
+          <ol start="5">
+            <li>Name it <strong>Send health to GabikOS</strong> and save.</li>
+            <li>Go to the <strong>Automation</strong> tab → <strong>+</strong> → <strong>Time of Day</strong> → pick a time (22:00 works well), <strong>Run Immediately</strong>, and choose the shortcut.</li>
+          </ol>
+        </div>
+        <div class="row gap-2 mt-4 row--wrap">
+          <button class="btn btn--primary" data-ah-test>${icon('zap')}Send a test reading</button>
+          <button class="btn" data-ah-sync>${icon('refresh')}Check for readings</button>
+          <button class="btn btn--ghost" data-ah-rotate>${icon('refresh')}New key</button>
+        </div>` : ''}
+      ` : `
+        <div class="callout callout--warn mb-3">
+          <p style="font-size:13px">The automatic route needs your GabikOS account, so the phone knows
+          where to send the numbers. Sign in from <strong>Settings → Account</strong>, then come back.
+          The <strong>Simple link</strong> tab works right now without one.</p>
+        </div>`}
+    </div>
+
+    <div data-ahpane="link" hidden>
+      <p class="dim mb-3" style="font-size:13px">No account needed. The Shortcut opens GabikOS with the numbers
+        in the address, GabikOS takes them in and tidies the address again. The page has to open for it to land.</p>
+      ${copyable('ahLink', 'URL for the Shortcut', link,
+        'Replace <code>DATE</code>, <code>STEPS</code>, <code>BED</code> and <code>WAKE</code> with variables in a <strong>Text</strong> action, then <strong>Open URLs</strong>.')}
+      <div class="ah__steps">
+        <h4>On your iPhone</h4>
+        <ol>
+          <li><strong>Find Health Samples</strong> → <strong>Steps</strong>, <strong>Today</strong> → <strong>Calculate Statistics</strong> → <strong>Sum</strong>.</li>
+          <li>Add a <strong>Text</strong> action, paste the URL, and drop the variables in place of the capitals.</li>
+          <li>Add <strong>Open URLs</strong> with that text.</li>
+        </ol>
+        <p class="dim" style="font-size:12px">Leave out any value you do not want — <code>&amp;bed=</code> and
+          <code>&amp;wake=</code> are optional, and <code>&amp;sleep=452</code> works instead of them.</p>
+      </div>
+    </div>
+
+    <div data-ahpane="import" hidden>
+      <p class="dim mb-3" style="font-size:13px">For filling in the past. In Health, tap your picture →
+        <strong>Export All Health Data</strong>, unzip it, and hand over <code>export.xml</code>.
+        Big exports take a moment.</p>
+      <div class="row gap-2 row--wrap mb-4">
+        <button class="btn btn--primary" data-ah-file>${icon('upload')}Choose export.xml</button>
+        <button class="btn" data-ah-export>${icon('download')}Export my health data</button>
+      </div>
+      <label class="ah__field"><span>Or paste one day per line — <code>date, steps, sleep</code></span></label>
+      <textarea class="textarea mono" id="ahPaste" rows="5" placeholder="2026-09-15, 9120, 7.25
+2026-09-16, 10233, 6.5"></textarea>
+      <button class="btn mt-3" data-ah-paste>${icon('check')}Add these days</button>
+    </div>
+  </div>`;
+
+  modal.open({
+    title: 'Apple Health',
+    size: 'wide',
+    body,
+    onMount(root) { wireBridge(root); },
+  });
+}
+
+function wireBridge(root) {
+  on(root, 'click', '[data-ahtab]', (e, el) => {
+    const want = el.dataset.ahtab;
+    root.querySelectorAll('[data-ahtab]').forEach(b => b.classList.toggle('is-on', b === el));
+    root.querySelectorAll('[data-ahpane]').forEach(p => { p.hidden = p.dataset.ahpane !== want; });
+  });
+
+  on(root, 'click', '[data-copy]', async (e, el) => {
+    const input = root.querySelector('#' + el.dataset.copy);
+    if (!input) return;
+    try { await navigator.clipboard.writeText(input.value); toast('Copied', 'ok'); }
+    catch { input.select(); toast('Press ⌘/Ctrl + C to copy', 'warn'); }
+  });
+
+  on(root, 'click', '[data-ah-key]', async () => {
+    try {
+      await healthKey({ create: true });
+      store.setSetting('health.linked', true);
+      modal.close(); openBridge();
+    } catch (err) { toast(healthError(err), 'bad'); }
+  });
+
+  on(root, 'click', '[data-ah-rotate]', async () => {
+    if (!await confirmDialog({
+      title: 'Make a new key?', danger: true, confirmLabel: 'New key',
+      message: 'The old key stops working straight away, so update the Shortcut on your phone afterwards.',
+    })) return;
+    try { await healthKey({ rotate: true }); modal.close(); openBridge(); toast('New key made', 'ok'); }
+    catch (err) { toast(healthError(err), 'bad'); }
+  });
+
+  on(root, 'click', '[data-ah-test]', async (e, el) => {
+    const key = root.querySelector('#ahKey')?.value;
+    if (!key) return;
+    el.disabled = true;
+    try {
+      await cloudPush(key, { date: today(), steps: 1234 });
+      const res = await syncAppleHealth({ quiet: false });
+      toast(res?.days ? 'It works — a test reading arrived.' : 'Sent, but nothing came back.', res?.days ? 'ok' : 'warn');
+    } catch (err) { toast(healthError(err), 'bad'); }
+    finally { el.disabled = false; }
+  });
+
+  on(root, 'click', '[data-ah-sync]', () => syncAppleHealth({ quiet: false }));
+
+  on(root, 'click', '[data-ah-file]', async () => {
+    const file = await pickFile('.xml,text/xml,application/xml');
+    if (!file) return;
+    toast('Reading the export…', 'info');
+    try {
+      const samples = parseAppleExport(file.content || '');
+      if (!samples.length) return toast('No step or sleep records in that file.', 'warn');
+      const res = ingestSamples(samples, 'apple');
+      store.setSetting('health.linked', true);
+      toast(`${plural(res.days, 'day')} imported`, 'ok');
+      modal.close(); render();
+    } catch (err) { toast(String(err.message || err), 'bad'); }
+  });
+
+  on(root, 'click', '[data-ah-paste]', () => {
+    const text = root.querySelector('#ahPaste')?.value || '';
+    const samples = parsePasted(text);
+    if (!samples.length) return toast('Nothing readable in there.', 'warn');
+    const res = ingestSamples(samples, 'manual');
+    toast(`${plural(res.days, 'day')} added`, 'ok');
+    modal.close(); render();
+  });
+
+  on(root, 'click', '[data-ah-export]', () => {
+    const rows = [...S().metrics].sort(by('date')).map(m =>
+      [m.date, m.steps ?? '', sleepMinsOf(m) ?? '', m.bedtime || '', m.wake || '', m.weight ?? '', m.water ?? ''].join(','));
+    download(`gabikos-health-${today()}.csv`,
+      'date,steps,sleep_minutes,bedtime,wake,weight_kg,water\n' + rows.join('\n'), 'text/csv');
+  });
+}
+
+/* ═══ View ════════════════════════════════════════════════════ */
+
 registerView('health', {
   title: 'Health', icon: 'heart', group: 'Life', order: 70,
-  desc: 'Training, body, sleep and hydration',
-  keywords: ['health', 'fitness', 'workout', 'gym', 'sleep', 'weight', 'water', 'steps'],
+  desc: 'Sleep, steps, training and body',
+  keywords: ['health', 'fitness', 'workout', 'gym', 'sleep', 'bedtime', 'weight', 'water', 'steps', 'apple health'],
 
   render(p) {
     const tab = p.tab || 'today';
     const workouts = [...S().workouts].sort(by('date', -1));
     const g = settings().goals;
     const m = metricFor() || {};
+    const mins = sleepMinsOf(m);
 
     const week = Array.from({ length: 7 }, (_, i) => addDaysISO(today(), -(6 - i)));
     const weekWorkouts = workouts.filter(w => week.includes(w.date));
     const weekMins = sum(weekWorkouts.map(w => w.duration));
-    const weights = S().metrics.filter(x => x.weight != null).sort(by('date'));
-    const sleepVals = S().metrics.filter(x => x.sleep != null).slice(-14).map(x => x.sleep);
+    const goalMins = (g.sleep || 8) * 60;
 
     const head = pageHead('Health', `${plural(weekWorkouts.length, 'session')} this week · ${fmtMins(weekMins)} trained`, `
       <div class="seg">
         <button class="${tab === 'today' ? 'is-on' : ''}" data-tab="today">Today</button>
+        <button class="${tab === 'sleep' ? 'is-on' : ''}" data-tab="sleep">Sleep</button>
         <button class="${tab === 'training' ? 'is-on' : ''}" data-tab="training">Training</button>
         <button class="${tab === 'body' ? 'is-on' : ''}" data-tab="body">Body</button>
       </div>
       <button class="btn btn--primary" data-new-workout>${icon('plus')}<span class="hide-sm">Workout</span></button>`, 'heart');
 
+    const src = k => (m.src?.[k] === 'apple' ? ' <span class="chip chip--ok chip--xs">Health</span>' : '');
     const stats = `<div class="grid grid--stat mb-6">
-      ${statTile({ label: 'This week', value: fmtMins(weekMins), sub: plural(weekWorkouts.length, 'workout'), icon: 'dumbbell', tone: 'ok' })}
-      ${statTile({ label: 'Water today', value: `${m.water || 0}<small>/${g.water}</small>`, sub: `${pct(m.water || 0, g.water)}% of goal`, icon: 'droplet', tone: 'info' })}
-      ${statTile({ label: 'Sleep', value: m.sleep ? `${m.sleep}<small>h</small>` : '—', sub: sleepVals.length ? `${round(avg(sleepVals), 1)}h avg (14d)` : 'not logged', icon: 'bed', tone: (m.sleep || 0) >= g.sleep ? 'ok' : 'warn' })}
-      ${statTile({ label: 'Steps', value: m.steps ? (m.steps / 1000).toFixed(1) + 'k' : '—', sub: `goal ${(g.steps / 1000).toFixed(0)}k`, icon: 'footprints', tone: (m.steps || 0) >= g.steps ? 'ok' : '' })}
+      ${statTile({ label: 'Steps', value: m.steps != null ? (m.steps / 1000).toFixed(1) + '<small>k</small>' : '—',
+        sub: `goal ${(g.steps / 1000).toFixed(0)}k`, icon: 'footprints', tone: (m.steps || 0) >= g.steps ? 'ok' : '' })}
+      ${statTile({ label: 'Last night', value: mins != null ? fmtSleep(mins) : '—',
+        sub: m.bedtime || m.wake ? `${clockLabel(m.bedtime)} → ${clockLabel(m.wake)}` : 'not logged',
+        icon: 'bed', tone: mins != null && mins >= goalMins ? 'ok' : 'warn' })}
+      ${statTile({ label: 'Water today', value: `${m.water || 0}<small>/${g.water}</small>`,
+        sub: `${pct(m.water || 0, g.water)}% of goal`, icon: 'droplet', tone: 'info' })}
+      ${statTile({ label: 'This week', value: fmtMins(weekMins), sub: plural(weekWorkouts.length, 'workout'),
+        icon: 'dumbbell', tone: 'ok' })}
     </div>`;
 
+    /* ── Sleep ── */
+    if (tab === 'sleep') {
+      const list = nights(14);
+      const logged = list.filter(n => n.mins != null);
+      const avgMins = logged.length ? Math.round(avg(logged.map(n => n.mins))) : null;
+      const beds = logged.filter(n => n.m?.bedtime).map(n => clockMins(n.m.bedtime));
+      // Bedtimes wrap past midnight, so average them around the evening.
+      const avgBed = beds.length ? Math.round(avg(beds.map(b => (b < 720 ? b + 1440 : b)))) % 1440 : null;
+      const wakes = logged.filter(n => n.m?.wake).map(n => clockMins(n.m.wake));
+      const avgWake = wakes.length ? Math.round(avg(wakes)) : null;
+      const debt = logged.slice(-7).reduce((a, n) => a + (goalMins - n.mins), 0);
+      const asClock = v => (v == null ? '—' : `${pad2(Math.floor(v / 60))}:${pad2(v % 60)}`);
+
+      return head + bridgeStrip() + `
+      <div class="card card--pad mb-6 night">
+        <div class="row row--between row--wrap gap-4">
+          <div>
+            <div class="dim" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase">Last night</div>
+            <div class="night__big">${mins != null ? fmtSleep(mins) : 'not logged yet'}</div>
+            <div class="night__times">
+              <span>${icon('moon', 'ic ic--sm')} ${clockLabel(m.bedtime)}</span>
+              <i>→</i>
+              <span>${icon('sun', 'ic ic--sm')} ${clockLabel(m.wake)}</span>
+              ${m.quality ? `<span class="dim">· ${'★'.repeat(m.quality)}</span>` : ''}
+              ${src('sleepMins')}
+            </div>
+          </div>
+          <div class="row gap-2 row--wrap">
+            <button class="btn" data-bed>${icon('moon')}Going to bed</button>
+            <button class="btn" data-wake>${icon('sun')}Just woke up</button>
+            <button class="btn btn--ghost" data-night>${icon('edit')}Edit</button>
+          </div>
+        </div>
+        ${mins != null ? `<div class="bar mt-4"><i style="width:${pct(mins, goalMins)}%;background:#a78bfa"></i></div>
+          <p class="dim mt-2" style="font-size:12px">${mins >= goalMins
+            ? `${fmtSleep(mins - goalMins)} over your ${g.sleep}h goal — that is the good kind of debt.`
+            : `${fmtSleep(goalMins - mins)} short of your ${g.sleep}h goal.`}</p>` : `
+          <p class="dim mt-3" style="font-size:12.5px">Tap <strong>Going to bed</strong> tonight and
+            <strong>Just woke up</strong> in the morning — GabikOS works out the rest.</p>`}
+      </div>
+
+      <div class="grid grid--stat mb-6">
+        ${statTile({ label: 'Average night', value: avgMins != null ? fmtSleep(avgMins) : '—', sub: `${logged.length} of 14 logged`, icon: 'bed', tone: avgMins != null && avgMins >= goalMins ? 'ok' : 'warn' })}
+        ${statTile({ label: 'Usual bedtime', value: asClock(avgBed), sub: 'last 14 nights', icon: 'moon', tone: '' })}
+        ${statTile({ label: 'Usual wake-up', value: asClock(avgWake), sub: 'last 14 nights', icon: 'sun', tone: '' })}
+        ${statTile({ label: '7-night balance', value: logged.length ? `${debt > 0 ? '−' : '+'}${fmtSleep(Math.abs(Math.round(debt)))}` : '—', sub: debt > 0 ? 'behind your goal' : 'ahead of your goal', icon: 'activity', tone: debt > 0 ? 'warn' : 'ok' })}
+      </div>
+
+      <div class="card mb-6"><div class="card__head">${icon('chart')}<h3>Hours slept (14 nights)</h3>
+        <span class="chip">goal ${g.sleep}h</span></div>
+        <div class="card__body">${barChart(list.map(n => ({
+          label: dayName(n.date, true)[0], value: n.mins != null ? round(n.mins / 60, 1) : 0,
+        })), { format: v => (v ? v + 'h' : '—') })}</div></div>
+
+      <div class="card"><div class="card__head">${icon('list')}<h3>Nights</h3>
+        <button class="btn btn--sm" data-night>${icon('plus')}Log last night</button></div>
+        <div class="list">${[...list].reverse().map(n => `
+          <div class="list__row">
+            <span class="stat__icon">${icon(n.mins != null && n.mins >= goalMins ? 'moon' : 'bed', 'ic ic--sm')}</span>
+            <div class="list__main">
+              <div class="list__title">${esc(fmtDate(n.date))}</div>
+              <div class="list__sub">${n.mins != null
+                ? `${fmtSleep(n.mins)} · ${clockLabel(n.m?.bedtime)} → ${clockLabel(n.m?.wake)}${n.m?.sleepNote ? ` · ${esc(n.m.sleepNote)}` : ''}`
+                : 'not logged'}</div>
+            </div>
+            <div class="list__actions">
+              <button class="icon-btn icon-btn--sm" data-night="${esc(n.date)}">${icon('edit')}</button>
+            </div>
+          </div>`).join('')}
+        </div></div>`;
+    }
+
+    /* ── Training ── */
     if (tab === 'training') {
       const byType = WORKOUT_TYPES.map(t => ({ label: t.slice(0, 3), value: workouts.filter(w => w.type === t).length })).filter(x => x.value);
       return head + stats + `
@@ -139,72 +654,88 @@ registerView('health', {
         </div></div>`;
     }
 
+    /* ── Body ── */
     if (tab === 'body') {
+      const weights = S().metrics.filter(x => x.weight != null).sort(by('date'));
       const wSeries = series('weight', 60).filter(x => x.value != null);
-      const sSeries = series('sleep', 30);
+      const hrSeries = series('restingHr', 60).filter(x => x.value != null);
       const first = weights[0], last = weights.at(-1);
       const change = first && last ? round(last.weight - first.weight, 1) : null;
       return head + stats + `
       <div class="grid grid--2 mb-6">
         <div class="card"><div class="card__head">${icon('scale')}<h3>Weight</h3>
           ${change != null ? `<span class="chip ${change <= 0 ? 'chip--ok' : 'chip--warn'}">${change > 0 ? '+' : ''}${change} kg</span>` : ''}</div>
-          <div class="card__body">${lineChart(wSeries, { unit: ' kg', format: v => v })}</div></div>
-        <div class="card"><div class="card__head">${icon('bed')}<h3>Sleep (30 days)</h3></div>
-          <div class="card__body">${lineChart(sSeries.filter(x => x.value != null), { color: '#a78bfa', unit: 'h' })}</div></div>
+          <div class="card__body">${wSeries.length ? lineChart(wSeries, { unit: ' kg', format: v => v }) : '<div class="chart-empty">No weigh-ins yet</div>'}</div></div>
+        <div class="card"><div class="card__head">${icon('activity')}<h3>Resting heart rate</h3></div>
+          <div class="card__body">${hrSeries.length ? lineChart(hrSeries, { color: '#f4737b', unit: ' bpm' }) : '<div class="chart-empty">No readings yet</div>'}</div></div>
       </div>
       <div class="card"><div class="card__head">${icon('calendar')}<h3>Daily log</h3>
         <button class="btn btn--sm" data-log-day>${icon('plus')}Log today</button></div>
         <div class="table__wrap"><table class="table">
-          <thead><tr><th>Date</th><th>Weight</th><th>Sleep</th><th>Steps</th><th>Water</th><th>Energy</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Weight</th><th>Sleep</th><th>Bed → wake</th><th>Steps</th><th>Water</th><th>Energy</th><th></th></tr></thead>
           <tbody>${[...S().metrics].sort(by('date', -1)).slice(0, 40).map(x => `
             <tr><td>${esc(fmtDate(x.date))}</td>
               <td class="mono">${x.weight != null ? x.weight + ' kg' : '—'}</td>
-              <td class="mono">${x.sleep != null ? x.sleep + ' h' : '—'}</td>
+              <td class="mono">${fmtSleep(sleepMinsOf(x))}</td>
+              <td class="mono">${x.bedtime || x.wake ? `${clockLabel(x.bedtime)} → ${clockLabel(x.wake)}` : '—'}</td>
               <td class="mono">${x.steps != null ? Number(x.steps).toLocaleString() : '—'}</td>
               <td class="mono">${x.water || 0}</td>
               <td>${x.mood ? '●'.repeat(x.mood) + '<span class="dim">' + '○'.repeat(5 - x.mood) + '</span>' : '—'}</td>
               <td class="tr"><button class="icon-btn icon-btn--sm" data-edit-day="${esc(x.date)}">${icon('edit')}</button></td>
-            </tr>`).join('') || '<tr><td colspan="7" class="dim tc" style="padding:26px">No entries yet</td></tr>'}
+            </tr>`).join('') || '<tr><td colspan="8" class="dim tc" style="padding:26px">No entries yet</td></tr>'}
           </tbody></table></div></div>`;
     }
 
-    /* today tab */
-    const g2 = settings().goals;
+    /* ── Today ── */
     const recent = workouts.slice(0, 5);
-    return head + stats + `
+    const move = m.exerciseMinutes ?? sum(workouts.filter(w => w.date === today()).map(w => w.duration));
+    return head + bridgeStrip() + `
+    <div class="card card--pad mb-6">
+      <div class="hrings">
+        ${ring(m.steps, g.steps, '#3ecf8e', 'Steps', m.steps != null ? `${Number(m.steps).toLocaleString()} of ${Number(g.steps).toLocaleString()}` : 'nothing yet today')}
+        ${ring(mins, goalMins, '#a78bfa', 'Sleep', mins != null ? `${fmtSleep(mins)} of ${g.sleep}h` : 'log last night')}
+        ${ring(m.water, g.water, '#4cc4f0', 'Water', `${m.water || 0} of ${g.water} glasses`)}
+        ${ring(move, 30, '#ffb45c', 'Move', move ? `${fmtMins(move)} active` : 'no movement logged')}
+      </div>
+    </div>
+
     <div class="grid grid--2 mb-6">
+      <div class="card"><div class="card__head">${icon('bed')}<h3>Sleep</h3>
+        ${mins != null ? `<span class="chip ${mins >= goalMins ? 'chip--ok' : 'chip--warn'}">${fmtSleep(mins)}</span>` : ''}</div>
+        <div class="card__body">
+          <div class="night__times mb-3">
+            <span>${icon('moon', 'ic ic--sm')} ${clockLabel(m.bedtime)}</span>
+            <i>→</i>
+            <span>${icon('sun', 'ic ic--sm')} ${clockLabel(m.wake)}</span>
+          </div>
+          <div class="row gap-2 row--wrap">
+            <button class="btn btn--sm" data-bed>${icon('moon')}Going to bed</button>
+            <button class="btn btn--sm" data-wake>${icon('sun')}Just woke up</button>
+            <button class="btn btn--sm btn--ghost" data-tab="sleep">All nights</button>
+          </div>
+        </div></div>
+
       <div class="card"><div class="card__head">${icon('droplet')}<h3>Hydration</h3>
-        <span class="chip chip--info">${m.water || 0} / ${g2.water}</span></div>
+        <span class="chip chip--info">${m.water || 0} / ${g.water}</span></div>
         <div class="card__body">
           <div class="water">
-            ${Array.from({ length: g2.water }, (_, i) => `<button class="glass ${i < (m.water || 0) ? 'is-full' : ''}"
+            ${Array.from({ length: g.water }, (_, i) => `<button class="glass ${i < (m.water || 0) ? 'is-full' : ''}"
               data-water-set="${i + 1}" aria-label="${i + 1} glasses">${icon('droplet')}</button>`).join('')}
           </div>
           <div class="row gap-2 mt-4">
             <button class="btn btn--sm" data-water="1">${icon('plus')}Glass</button>
             <button class="btn btn--sm btn--ghost" data-water="-1">${icon('x')}Undo</button>
             <div class="grow"></div>
-            <span class="dim" style="font-size:12px">${pct(m.water || 0, g2.water)}% of your daily goal</span>
+            <span class="dim" style="font-size:12px">${pct(m.water || 0, g.water)}% of your daily goal</span>
           </div>
         </div></div>
-
-      <div class="card"><div class="card__head">${icon('activity')}<h3>Today at a glance</h3>
-        <button class="btn btn--sm" data-log-day>${icon('edit')}Log</button></div>
-        <div class="card__body col gap-4">
-          ${[
-            { label: 'Sleep', v: m.sleep, goal: g2.sleep, unit: 'h', ic: 'bed', color: '#a78bfa' },
-            { label: 'Steps', v: m.steps, goal: g2.steps, unit: '', ic: 'footprints', color: '#3ecf8e' },
-            { label: 'Water', v: m.water, goal: g2.water, unit: ' glasses', ic: 'droplet', color: '#4cc4f0' },
-          ].map(r => `<div>
-            <div class="row row--between mb-2">
-              <span class="row gap-2" style="font-size:13px">${icon(r.ic, 'ic ic--sm')}${r.label}</span>
-              <strong class="mono" style="font-size:13px">${r.v != null ? Number(r.v).toLocaleString() + r.unit : '—'}
-                <span class="dim">/ ${Number(r.goal).toLocaleString()}${r.unit}</span></strong>
-            </div>
-            <div class="bar"><i style="width:${pct(r.v || 0, r.goal)}%;background:${r.color}"></i></div>
-          </div>`).join('')}
-        </div></div>
     </div>
+
+    <div class="card mb-6"><div class="card__head">${icon('footprints')}<h3>Steps this week</h3>
+      <button class="btn btn--sm" data-log-day>${icon('edit')}Log day</button></div>
+      <div class="card__body">${barChart(week.map(d => ({
+        label: dayName(d, true)[0], value: metricFor(d)?.steps || 0,
+      })), { format: v => (v ? Number(v).toLocaleString() : '—') })}</div></div>
 
     <div class="card"><div class="card__head">${icon('dumbbell')}<h3>Recent workouts</h3>
       <button class="btn btn--sm" data-new-workout>${icon('plus')}Log</button></div>
@@ -228,11 +759,21 @@ registerView('health', {
     });
     on(root, 'click', '[data-log-day]', () => logDay());
     on(root, 'click', '[data-edit-day]', (e, el) => logDay(el.dataset.editDay));
+    on(root, 'click', '[data-bed]', () => stampBed());
+    on(root, 'click', '[data-wake]', () => stampWake());
+    on(root, 'click', '[data-night]', (e, el) => editNight(el.dataset.night || today()));
+    on(root, 'click', '[data-ah-setup]', () => openBridge());
+    on(root, 'click', '[data-ah-sync]', () => syncAppleHealth({ quiet: false }));
     on(root, 'click', '[data-wdel]', async (e, el) => {
       const w = store.find('workouts', el.dataset.wdel);
       if (await confirmDialog({ title: 'Delete workout?', message: `${w.type} on ${fmtDate(w.date)}`, confirmLabel: 'Delete', danger: true })) {
         store.remove('workouts', w.id); toast('Deleted', 'ok'); render();
       }
     });
+
+    // Opening Health is the natural moment to see whether the phone sent anything.
+    if (hs().linked && hs().autoPull !== false) syncAppleHealth({ quiet: true });
   },
 });
+
+export { openBridge as openHealthBridge };

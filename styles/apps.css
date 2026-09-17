@@ -799,3 +799,43 @@
 .linkbtn{color:var(--accent);font-weight:600;font-size:inherit;text-decoration:underline;
   text-underline-offset:2px}
 .linkbtn:hover{opacity:.82}
+
+/* ─── Health: rings, nights, the Apple Health bridge ─── */
+.hrings{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:18px 14px}
+.hring{display:flex;align-items:center;gap:13px;min-width:0}
+.hring__meta{display:flex;flex-direction:column;gap:3px;min-width:0}
+.hring__meta strong{font-size:14px;font-weight:650}
+.hring__meta .dim{font-size:12px;line-height:1.45}
+
+.night__big{font-size:31px;font-weight:750;letter-spacing:-.035em;margin:4px 0 6px;line-height:1.1}
+.night__times{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;
+  font-variant-numeric:tabular-nums;color:var(--text-2)}
+.night__times span{display:inline-flex;align-items:center;gap:6px}
+.night__times i{color:var(--text-3);font-style:normal}
+
+.bridge.is-on .stat__icon{color:var(--ok);background:var(--ok-soft)}
+.chip--xs{padding:1px 6px;font-size:10.5px;border-radius:6px}
+.callout--warn{background:linear-gradient(135deg,var(--warn-soft),transparent 72%),var(--surface);
+  border-color:color-mix(in srgb,var(--warn) 34%,var(--line))}
+
+.ah{font-size:13.5px}
+.ah__field{display:block;margin-bottom:14px}
+.ah__field label,.ah__field>span{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.ah__field code,.ah__steps code,.ah p code{font-family:var(--font-mono);font-size:11.5px;padding:1px 5px;
+  border-radius:5px;background:var(--surface-2);border:1px solid var(--line)}
+.ah__steps{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.ah__steps h4{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px}
+.ah__steps ol{margin:0 0 4px;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+.ah__steps li{font-size:13px;line-height:1.6;color:var(--text-2)}
+.ah__code{margin:12px 0;padding:12px 14px;border-radius:var(--r-sm);background:var(--surface-2);
+  border:1px solid var(--line);font-size:11.5px;line-height:1.75;color:var(--text-2);
+  white-space:pre-wrap;word-break:break-word}
+
+@media (max-width:460px){
+  .hrings{gap:16px 10px}
+  .hring{gap:10px}
+  .hring .ring svg{width:62px;height:62px}
+  .hring__meta strong{font-size:13px}
+  .hring__meta .dim{font-size:11.5px}
+  .night__big{font-size:26px}
+}

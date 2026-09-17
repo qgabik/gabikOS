@@ -256,7 +256,21 @@ async function writeSlice(slice) {
 let unwatchers = [];
 let storeUnsub = null;
 
-export async function initSync() {
+let initing = null;
+
+/**
+ * Signing in starts sync twice — once from the sign-in form, once from the
+ * auth listener that sees the same event. Both used to run at once, and the
+ * second one asked Supabase for realtime channels the first had already
+ * subscribed, which throws instead of syncing. Queue them instead: the
+ * second run then tears the first one's watchers down before making its own.
+ */
+export function initSync() {
+  initing = (initing || Promise.resolve()).catch(() => {}).then(runInit);
+  return initing;
+}
+
+async function runInit() {
   shutDown(true);
   setStatus('connecting');
   try {

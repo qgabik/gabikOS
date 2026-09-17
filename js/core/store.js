@@ -23,6 +23,7 @@ export function blankState() {
       pomodoro: { focus: 25, short: 5, long: 15, rounds: 4 },
       goals: { water: 8, steps: 8000, sleep: 8, focusMins: 120 },
       school: { days: 5, periods: [] },
+      health: { linked: false, autoPull: true, lastAt: 0, lastSource: '', lastDays: 0 },
       sidebarCollapsed: false,
       pinned: ['dashboard', 'tasks', 'habits', 'notes'],
     },
@@ -104,6 +105,7 @@ class Store {
     next.settings.pomodoro = { ...base.settings.pomodoro, ...(data.settings?.pomodoro || {}) };
     next.settings.goals = { ...base.settings.goals, ...(data.settings?.goals || {}) };
     next.settings.school = { ...base.settings.school, ...(data.settings?.school || {}) };
+    next.settings.health = { ...base.settings.health, ...(data.settings?.health || {}) };
     // guarantee array/object shapes even if a file was hand-edited
     for (const [k, v] of Object.entries(base)) {
       if (Array.isArray(v) && !Array.isArray(next[k])) next[k] = [];
