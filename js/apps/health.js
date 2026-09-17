@@ -13,9 +13,10 @@ import { openForm, confirmDialog, toast, on, emptyState, pageHead, statTile, mod
 import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, clamp,
          plural, dayName, parseISO, download, pickFile } from '../core/util.js';
 import { lineChart, barChart } from '../core/charts.js';
+import { BUILD } from '../config.js';
 import { readLink, stripLink, normalizeSample, minutesBetween, clockMins,
          healthKey, pullInbox, cloudReady, cloudRecipe, linkTemplate,
-         parseAppleExport, parsePasted, diagnose, simpleLink, cloudPing } from '../core/health-link.js';
+         parseAppleExport, parsePasted, diagnose, simpleLink, cloudPing, clearInbox } from '../core/health-link.js';
 
 /* ─── Small formatters ─── */
 const pad2 = n => String(n).padStart(2, '0');
@@ -138,12 +139,26 @@ export function ingestSamples(samples, source = 'apple') {
 export function consumeHealthLink() {
   let samples = null;
   try { samples = readLink(); } catch { return null; }
-  if (!samples) return null;
+  if (!samples) return null;                       // an ordinary link, nothing to do
+
   const res = ingestSamples(samples, 'apple');
   try { stripLink(); } catch { /* an old browser keeps the URL; harmless */ }
+
   if (res.days) {
     store.setSetting('health.linked', true);
     store.log('heart', `Apple Health · ${plural(res.days, 'day')} received`, 'health');
+    const m = metricFor();
+    res.message = m?.steps != null
+      ? `${Number(m.steps).toLocaleString()} steps from Apple Health`
+      : `Apple Health · ${plural(res.days, 'day')} updated`;
+    res.tone = 'ok';
+  } else {
+    // The Shortcut ran and reached us, but carried nothing we could read.
+    // Saying so beats leaving yesterday's number on screen unexplained.
+    res.message = samples.length
+      ? 'Your phone sent a reading GabikOS already had.'
+      : 'Your phone opened GabikOS but sent no number — check the Statistic variable is at the end of the Text action.';
+    res.tone = samples.length ? 'info' : 'warn';
   }
   return res;
 }
@@ -429,6 +444,7 @@ p_steps  Number   (the Statistic variable)</pre>
           <button class="btn btn--primary" data-ah-test>${icon('zap')}Test the connection</button>
           <button class="btn" data-ah-sync>${icon('refresh')}Check for readings</button>
           <button class="btn btn--ghost" data-ah-rotate>${icon('refresh')}New key</button>
+          <button class="btn btn--ghost" data-ah-clear>${icon('trash')}Clear sent readings</button>
         </div>` : ''}
       ` : `
         <div class="callout callout--warn mb-3">
@@ -455,6 +471,7 @@ p_steps  Number   (the Statistic variable)</pre>
     <div class="ah__check">
       <button class="btn btn--block" data-ah-diagnose>${icon('shield')}Something is not working — check my setup</button>
       <div id="ahResult"></div>
+      <p class="ah__build">GabikOS build ${esc(BUILD)}</p>
     </div>
   </div>`;
 
@@ -534,6 +551,15 @@ function wireBridge(root) {
         <p style="font-size:13px"><strong>Do this next:</strong> ${bad.fix}</p></div>`
         : `<p class="dim mt-3" style="font-size:13px">Everything checks out.</p>`}`;
     el.disabled = false;
+  });
+
+  on(root, 'click', '[data-ah-clear]', async () => {
+    if (!await confirmDialog({
+      title: 'Clear what your phone has sent?', danger: true, confirmLabel: 'Clear',
+      message: 'Removes every reading waiting in your account. What is already in GabikOS stays, and your phone can send again straight away.',
+    })) return;
+    try { const n = await clearInbox(); toast(n ? `${plural(n, 'reading')} cleared` : 'Nothing was waiting', 'ok'); }
+    catch (err) { toast(healthError(err), 'bad'); }
   });
 
   on(root, 'click', '[data-ah-file]', async () => {

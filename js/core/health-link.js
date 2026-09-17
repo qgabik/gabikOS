@@ -145,14 +145,22 @@ export function clockMins(hhmm) {
 const LINK_KEYS = ['ah', 'steps', 'st', 'sleep', 'sl', 'bed', 'wake', 'hr', 'kg', 'cal', 'ex',
                    'date', 'day', 'd', 'health'];
 
-/** Read health values out of the current URL, hash or query alike. */
+/**
+ * Read health values out of the current URL, hash or query alike.
+ *
+ * `null` means this was an ordinary link. An empty array means a Shortcut
+ * did send one but nothing usable was in it — worth saying out loud,
+ * because silence there looks exactly like the Shortcut not running.
+ */
 export function readLink(href = location.href) {
   let url;
   try { url = new URL(href); } catch { return null; }
   const found = [];
+  let addressed = false;
   const fromParams = sp => {
     const raw = Object.fromEntries(sp);
     if (!('ah' in raw) && !('health' in raw)) return;
+    addressed = true;
     if (raw.data) {                       // several days at once, as JSON
       try {
         const parsed = JSON.parse(raw.data);
@@ -169,7 +177,8 @@ export function readLink(href = location.href) {
   fromParams(url.searchParams);
   const q = url.hash.indexOf('?');
   if (q >= 0) fromParams(new URLSearchParams(url.hash.slice(q + 1)));
-  return found.length ? found : null;
+  if (found.length) return found;
+  return addressed ? [] : null;
 }
 
 /** Take the health values back out of the address bar once they are in. */
@@ -261,6 +270,16 @@ export async function pullInbox(days = 60) {
     exercise_minutes: r.exercise_minutes,
     at: Date.parse(r.updated_at) || 0,
   })).filter(Boolean);
+}
+
+/** Throw away everything the phone has posted — for clearing a bad reading. */
+export async function clearInbox() {
+  const ctx = await sb();
+  if (!ctx) return 0;
+  const { client, uid } = ctx;
+  const { data, error } = await client.from(INBOX_TABLE).delete().eq('user_id', uid).select('day');
+  if (error) throw error;
+  return (data || []).length;
 }
 
 /** The exact request the Shortcut has to make, ready to be copied. */

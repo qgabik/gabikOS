@@ -285,7 +285,7 @@ async function boot() {
   // A Shortcut may have opened GabikOS carrying today's steps and sleep in
   // the address. Take them in before the first render so the numbers are
   // already there, and before the router reads a hash that still has them.
-  consumeHealthLink();
+  const healthLink = consumeHealthLink();
 
   applyTheme();
   watchSystemTheme();
@@ -329,7 +329,12 @@ async function boot() {
   addEventListener('pagehide', flush);
 
   // The same link, arriving while GabikOS is already open on the phone.
-  addEventListener('hashchange', () => { if (consumeHealthLink()?.days) render(); });
+  addEventListener('hashchange', () => {
+    const res = consumeHealthLink();
+    if (!res) return;
+    if (res.days) render();
+    if (res.message) toast(res.message, res.tone || 'ok', { duration: 5000 });
+  });
 
   // And the readings the phone posted to the account on its own.
   const pullHealth = throttle(() => { if (settings().health?.linked) syncAppleHealth({ quiet: true }); }, 60_000);
@@ -359,6 +364,11 @@ async function boot() {
   await new Promise(r => requestAnimationFrame(r));
   bootEl.classList.add('boot--out');
   setTimeout(() => bootEl.remove(), 240);
+
+  // A Shortcut that opened GabikOS deserves an answer, whether or not it worked.
+  if (healthLink?.message) {
+    setTimeout(() => toast(healthLink.message, healthLink.tone || 'ok', { duration: 5000 }), 400);
+  }
 
   if (!profile().onboarded) {
     await onboard();

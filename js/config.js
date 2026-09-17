@@ -11,6 +11,9 @@
    stores an override in this browser only.
    ═══════════════════════════════════════════════════════════════ */
 
+/** Bumped with each release, so a screenshot says which copy is running. */
+export const BUILD = '2026-09-17 · 5';
+
 export const DEFAULT_SUPABASE = {
   url: 'https://meuwvywebbvwaprumshm.supabase.co',
   key: 'sb_publishable_2aV_Wlxg-Rvj7t1zAfgX8w_dP906uxo',
