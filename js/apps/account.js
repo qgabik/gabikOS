@@ -6,7 +6,7 @@ import { render } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { modal, toast, qs, confirmDialog, on } from '../core/ui.js';
 import { esc } from '../core/util.js';
-import { signIn, signUp, signOut, resetPassword, onAuthChange, authMessage, canUseSupabase, resetSupabase }
+import { signIn, signUp, signOut, resetPassword, onAuthChange, authMessage, canUseSupabase, resetSupabase, hasStoredSession, hasSessionInUrl, getSupabase }
   from '../core/supabase.js';
 import { supabaseConfig, setSupabaseConfig, DEFAULT_SUPABASE } from '../config.js';
 import { sync, initSync, forgetAccount, syncNow } from '../core/sync.js';
@@ -16,6 +16,11 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 /** The sign-in / create-account panel. */
 export function openAuth(mode = 'in') {
   if (!canUseSupabase()) { openProjectSetup(); return; }
+
+  // Opening this panel is the first reliable sign the library will be
+  // wanted. Fetching it now means it has arrived by the time a password
+  // has been typed, instead of stalling the button for a second after.
+  getSupabase().catch(() => { /* the submit will surface a real failure */ });
 
   const draw = m => `
     <div class="auth">
@@ -99,6 +104,7 @@ export function openAuth(mode = 'in') {
         }
         modal.close();
         toast(m === 'up' ? 'Account created — syncing now' : 'Signed in', 'ok');
+        watchAuth();                 // now there is a session to watch
         await initSync();
         render();
         document.dispatchEvent(new CustomEvent('gabikos:chrome'));
@@ -178,6 +184,9 @@ export async function doSignOut() {
 /** Keep sync in step with the session — a token expiring, another tab signing out. */
 export function watchAuth() {
   if (!canUseSupabase()) return;
+  // Watching means loading the library. Nothing to watch until there is a
+  // session, and signing in starts its own watch below.
+  if (!hasStoredSession() && !hasSessionInUrl()) return;
   onAuthChange((session, event) => {
     if (event === 'SIGNED_IN' && !sync.enabled) initSync().then(() => {
       render(); document.dispatchEvent(new CustomEvent('gabikos:chrome'));

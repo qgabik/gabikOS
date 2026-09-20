@@ -127,6 +127,37 @@
   <button class="icon-btn" id="fhStop" title="Stop"></button>
 </div>
 
+<!-- Every module is an import of an import, so a browser only discovers the
+     next layer once the previous one has arrived — thirteen round trips
+     before the app could run. These tell it about all of them at once. -->
+<link rel="modulepreload" href="js/core/store.js" />
+<link rel="modulepreload" href="js/core/router.js" />
+<link rel="modulepreload" href="js/core/util.js" />
+<link rel="modulepreload" href="js/core/ui.js" />
+<link rel="modulepreload" href="js/core/icons.js" />
+<link rel="modulepreload" href="js/core/theme.js" />
+<link rel="modulepreload" href="js/core/charts.js" />
+<link rel="modulepreload" href="js/core/palette.js" />
+<link rel="modulepreload" href="js/core/sync.js" />
+<link rel="modulepreload" href="js/core/markdown.js" />
+<link rel="modulepreload" href="js/config.js" />
+<link rel="modulepreload" href="js/apps/dashboard.js" />
+<link rel="modulepreload" href="js/apps/tasks.js" />
+<link rel="modulepreload" href="js/apps/habits.js" />
+<link rel="modulepreload" href="js/apps/focus.js" />
+<link rel="modulepreload" href="js/apps/calendar.js" />
+<link rel="modulepreload" href="js/apps/school.js" />
+<link rel="modulepreload" href="js/apps/notes.js" />
+<link rel="modulepreload" href="js/apps/journal.js" />
+<link rel="modulepreload" href="js/apps/goals.js" />
+<link rel="modulepreload" href="js/apps/health.js" />
+<link rel="modulepreload" href="js/apps/finance.js" />
+<link rel="modulepreload" href="js/apps/builder.js" />
+<link rel="modulepreload" href="js/apps/settings.js" />
+<link rel="modulepreload" href="js/apps/account.js" />
+<link rel="modulepreload" href="js/core/health-link.js" />
+<link rel="modulepreload" href="js/core/ics.js" />
+
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

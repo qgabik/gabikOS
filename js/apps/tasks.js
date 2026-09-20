@@ -2,7 +2,7 @@
    GabikOS — Tasks: projects, priorities, list & board
    ═══════════════════════════════════════════════════════════════ */
 import { store, S } from '../core/store.js';
-import { registerView, navigate, render, params } from '../core/router.js';
+import { registerView, navigate, render, params, refreshIf } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, qs, qsa } from '../core/ui.js';
 import { esc, today, iso, fmtDate, isPast, isToday, diffDays, by, uid, plural, addDaysISO } from '../core/util.js';
@@ -21,6 +21,13 @@ export const dueToday = () => openTasks().filter(t => t.due && diffDays(t.due, t
 export const overdue = () => openTasks().filter(t => t.due && isPast(t.due));
 export const projectOf = id => S().projects.find(p => p.id === id);
 
+/* A task ticked off vanishes from its list the same instant, which reads as
+   "did that register?" and leaves the Undo in the toast pointing at nothing
+   you can see. Keep it on screen, struck through and sorted to the bottom,
+   for long enough to watch it happen. */
+const LINGER = 5000;
+export const justDone = t => t.done && t.completedAt && Date.now() - t.completedAt < LINGER;
+
 /* ─── Mutations ─── */
 export function toggleTask(id) {
   const t = store.find('tasks', id);
@@ -33,6 +40,7 @@ export function toggleTask(id) {
     toast(left ? `Done — ${plural(left, 'task')} left` : 'Done — inbox zero! 🎉', 'ok', {
       action: 'Undo', onAction: () => { store.update('tasks', id, { done: false, completedAt: null }); render(); },
     });
+    setTimeout(() => refreshIf('tasks', 'dashboard'), LINGER + 60);   // let it slide away
   }
   render();
 }
@@ -144,11 +152,14 @@ registerView('tasks', {
       all: tasks.filter(t => !t.done).length,
       done: tasks.filter(t => t.done).length,
     };
-    if (filter === 'today') shown = shown.filter(t => !t.done && t.due && diffDays(t.due, today()) <= 0);
-    else if (filter === 'upcoming') shown = shown.filter(t => !t.done && t.due && diffDays(t.due, today()) > 0);
-    else if (filter === 'someday') shown = shown.filter(t => !t.done && !t.due);
+    // The counts above deliberately say how many are still open; a task
+    // lingering after being ticked is shown but is not one of them.
+    const open = t => !t.done || justDone(t);
+    if (filter === 'today') shown = shown.filter(t => open(t) && t.due && diffDays(t.due, today()) <= 0);
+    else if (filter === 'upcoming') shown = shown.filter(t => open(t) && t.due && diffDays(t.due, today()) > 0);
+    else if (filter === 'someday') shown = shown.filter(t => open(t) && !t.due);
     else if (filter === 'done') shown = shown.filter(t => t.done);
-    else shown = shown.filter(t => !t.done);
+    else shown = shown.filter(open);
 
     shown = [...shown].sort(by(t => (t.done ? 1 : 0)))
       .sort(by(t => (filter === 'done' ? -(t.completedAt || 0) : (t.due || '9999-99-99'))))
@@ -173,7 +184,7 @@ registerView('tasks', {
             ${esc(l)}${n ? ` <b class="seg__n">${n}</b>` : ''}</button>`).join('')}
         </div>
         <div class="grow"></div>
-        <select class="select select--inline" data-project>
+        <select class="select select--inline" data-project aria-label="Filter by project">
           <option value="">All projects</option>
           ${S().projects.map(pr => `<option value="${pr.id}"${projectId === pr.id ? ' selected' : ''}>${esc(pr.name)}</option>`).join('')}
         </select>

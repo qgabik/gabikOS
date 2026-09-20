@@ -63,7 +63,8 @@ registerView('notes', {
       <aside class="notes__side">
         <div class="notes__search">
           ${icon('search', 'ic ic--sm')}
-          <input class="input" placeholder="Search notes…" value="${esc(p.q || '')}" data-q />
+          <input class="input" placeholder="Search notes…" aria-label="Search notes"
+            value="${esc(p.q || '')}" data-q />
         </div>
         <div class="notes__filters">
           <button class="chip ${!folder && !tag ? 'chip--accent' : ''}" data-folder="">All</button>
@@ -219,10 +220,12 @@ function noteEditor(n) {
   ];
   return `
     <header class="note-head">
-      <input class="note-title" data-note-title="${n.id}" value="${esc(n.title || '')}" placeholder="Note title" />
+      <input class="note-title" data-note-title="${n.id}" value="${esc(n.title || '')}"
+        placeholder="Note title" aria-label="Note title" />
       <div class="row gap-1">
         <span class="note-stats dim" data-note-stats>${plural(wordCount(n.body), 'word')}</span>
-        <button class="icon-btn icon-btn--sm" data-nmenu="${n.id}">${icon('more')}</button>
+        <button class="icon-btn icon-btn--sm" data-nmenu="${n.id}"
+          aria-label="More actions for ${esc(n.title || 'this note')}">${icon('more')}</button>
       </div>
     </header>
     <div class="note-toolbar">
@@ -232,7 +235,7 @@ function noteEditor(n) {
       ${(n.tags || []).map(t => `<span class="chip">#${esc(t)}</span>`).join('')}
     </div>
     <div class="note-split">
-      <textarea class="note-body mono" data-note-body spellcheck="true"
+      <textarea class="note-body mono" data-note-body spellcheck="true" aria-label="Note contents"
         placeholder="# Start writing…&#10;&#10;Markdown works: **bold**, *italic*, - lists, - [ ] tasks, > quotes, \`code\`.">${esc(n.body || '')}</textarea>
       <div class="note-preview md" data-note-preview>${markdown(n.body) || '<p class="dim">Nothing yet — start typing on the left.</p>'}</div>
     </div>`;

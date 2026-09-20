@@ -81,9 +81,9 @@ registerView('finance', {
 
     const head = pageHead('Money', `${monthName(mDate.getMonth())} ${mDate.getFullYear()}`, `
       <div class="seg">
-        <button data-m-nav="-1">${icon('chevronLeft')}</button>
+        <button data-m-nav="-1" aria-label="Previous month">${icon('chevronLeft')}</button>
         <button data-m-nav="0">This month</button>
-        <button data-m-nav="1">${icon('chevronRight')}</button>
+        <button data-m-nav="1" aria-label="Next month">${icon('chevronRight')}</button>
       </div>
       <button class="btn btn--primary" data-new-tx>${icon('plus')}<span class="hide-sm">Transaction</span></button>`, 'wallet');
 

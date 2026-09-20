@@ -70,9 +70,9 @@ registerView('calendar', {
         <button class="${view === 'agenda' ? 'is-on' : ''}" data-cview="agenda">${icon('list')}<span class="hide-sm">Agenda</span></button>
       </div>
       <div class="seg">
-        <button data-nav-m="-1">${icon('chevronLeft')}</button>
+        <button data-nav-m="-1" aria-label="Previous month">${icon('chevronLeft')}</button>
         <button data-nav-m="0">Today</button>
-        <button data-nav-m="1">${icon('chevronRight')}</button>
+        <button data-nav-m="1" aria-label="Next month">${icon('chevronRight')}</button>
       </div>
       <button class="btn btn--primary" data-new-event>${icon('plus')}<span class="hide-sm">Event</span></button>`, 'calendar');
 

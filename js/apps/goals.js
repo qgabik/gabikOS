@@ -102,7 +102,8 @@ registerView('goals', {
               ${p >= 100 ? '<span class="chip chip--ok">Achieved 🎉</span>' : ''}
             </div>
           </div>
-          <button class="icon-btn icon-btn--sm" data-gmenu="${g.id}">${icon('more')}</button>
+          <button class="icon-btn icon-btn--sm" data-gmenu="${g.id}"
+            aria-label="More actions for ${esc(g.title || 'this goal')}">${icon('more')}</button>
         </header>
 
         ${g.why ? `<p class="goal__why">${icon('lightbulb', 'ic ic--sm')}${esc(g.why)}</p>` : ''}

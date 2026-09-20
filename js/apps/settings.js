@@ -69,20 +69,23 @@ registerView('settings', {
               <span class="avatar" style="width:54px;height:54px;font-size:20px">${esc(initials(pr.name))}</span>
               <div class="grow">
                 <div class="field"><label class="field__label">Name</label>
-                  <input class="input" data-set="profile.name" value="${esc(pr.name || '')}" placeholder="Your name" /></div>
+                  <input class="input" data-set="profile.name" value="${esc(pr.name || '')}"
+                    placeholder="Your name" aria-label="Your name" /></div>
               </div>
             </div>
             <div class="field"><label class="field__label">Tagline</label>
-              <input class="input" data-set="profile.tagline" value="${esc(pr.tagline || '')}" placeholder="A line that keeps you honest" />
+              <input class="input" data-set="profile.tagline" value="${esc(pr.tagline || '')}"
+                placeholder="A line that keeps you honest" aria-label="Your tagline" />
               <div class="field__hint">Shown under your name in the sidebar</div></div>
           </div></div>
 
         <div class="card"><div class="card__head">${icon('settings')}<h3>Preferences</h3></div>
           <div class="card__body col gap-4">
             <div class="field"><label class="field__label">Currency symbol</label>
-              <input class="input" data-set="settings.currency" value="${esc(s.currency)}" maxlength="3" /></div>
+              <input class="input" data-set="settings.currency" value="${esc(s.currency)}" maxlength="3"
+                aria-label="Currency symbol" /></div>
             <div class="field"><label class="field__label">Week starts on</label>
-              <select class="select" data-set="settings.weekStartsOn">
+              <select class="select" data-set="settings.weekStartsOn" aria-label="Week starts on">
                 <option value="1"${s.weekStartsOn === 1 ? ' selected' : ''}>Monday</option>
                 <option value="0"${s.weekStartsOn === 0 ? ' selected' : ''}>Sunday</option>
               </select></div>

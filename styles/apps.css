@@ -856,3 +856,27 @@
 .ah__diag small{display:block;color:var(--text-3);font-size:11.8px;margin-top:2px}
 .ah__build{margin-top:14px; text-align:center; font-size:11.5px; color:var(--text-3);
   font-variant-numeric:tabular-nums}
+
+/* ─── Touch: give small controls a finger-sized hit area ───
+   The visuals stay exactly as they are — an invisible overlay does the
+   catching. Only on a coarse pointer, so a mouse keeps the tight target
+   and nothing shifts on a desktop. The task checkbox draws at 21px, which
+   is fine to look at and far too small to hit reliably; it is also the
+   control this app is tapped on more than any other. */
+@media (pointer: coarse) {
+  .task__check, .note-tool, .seg button, .icon-btn--sm, .chip-btn { position: relative; }
+
+  .task__check::after,
+  .icon-btn--sm::after,
+  .chip-btn::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 42px; height: 42px; transform: translate(-50%, -50%);
+  }
+  /* Tabs and toolbar buttons sit shoulder to shoulder, so these grow
+     downwards and upwards only — a wider one would swallow its neighbour. */
+  .note-tool::after,
+  .seg button::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 50%;
+    height: 42px; transform: translateY(-50%);
+  }
+}

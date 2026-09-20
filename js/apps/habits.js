@@ -199,7 +199,8 @@ registerView('habits', {
                 ${sched ? '' : '<span class="chip">rest day</span>'}
               </div>
             </div>
-            <button class="icon-btn icon-btn--sm" data-hmenu="${h.id}">${icon('more')}</button>
+            <button class="icon-btn icon-btn--sm" data-hmenu="${h.id}"
+              aria-label="More actions for ${esc(h.name)}">${icon('more')}</button>
           </div>
 
           <div class="habit__counter">

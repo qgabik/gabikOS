@@ -51,7 +51,36 @@ export function resetSupabase() { clientPromise = null; clientFor = ''; }
 
 export const canUseSupabase = () => isConfigured();
 
+/**
+ * Whether this browser already holds a session, answered without loading
+ * anything.
+ *
+ * The library is 213 KB — a fifth of everything GabikOS ships — and it was
+ * being fetched on every visit just to ask "is anyone signed in?". Supabase
+ * keeps the session in localStorage under a key named after the project, so
+ * the question can be answered from the key alone, and someone who has
+ * never signed in never pays for the library at all.
+ */
+export function hasStoredSession() {
+  if (!isConfigured()) return false;
+  const ref = supabaseConfig().url.replace(/^https?:\/\//, '').split('.')[0];
+  try {
+    const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+    if (raw && raw.length > 2) return true;
+    // Older clients, and a project pointed somewhere else, use other names.
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) return true;
+    }
+  } catch { /* storage blocked — assume signed out and let a sign-in load it */ }
+  return false;
+}
+
 /* ─── Session ─── */
+/** A link back from a confirmation email carries the session in the URL. */
+export const hasSessionInUrl = () =>
+  /[#&?](access_token|refresh_token|error_description)=/.test(location.hash + location.search);
+
 export async function getSession() {
   if (!isConfigured()) return null;
   const supabase = await getSupabase();

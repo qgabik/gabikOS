@@ -13,7 +13,7 @@
    ═══════════════════════════════════════════════════════════════ */
 import { store, S, blankState } from './store.js';
 import { render } from './router.js';
-import { getSupabase, getSession, canUseSupabase } from './supabase.js';
+import { getSupabase, getSession, canUseSupabase, hasStoredSession, hasSessionInUrl } from './supabase.js';
 
 export const SLICES = {
   core:    ['profile', 'settings', 'activity'],
@@ -119,6 +119,9 @@ async function claudeProvider() {
 /** Supabase: the user's own account, reachable from any host. */
 async function supabaseProvider() {
   if (!canUseSupabase()) return null;
+  // Signed out, and no session coming back in a link: there is nothing for
+  // the library to do, so it is never fetched.
+  if (!hasStoredSession() && !hasSessionInUrl()) return null;
   const session = await getSession().catch(() => null);
   if (!session?.user) return null;
   const supabase = await getSupabase();
