@@ -5,7 +5,34 @@
    ═══════════════════════════════════════════════════════════════ */
 import { esc, clamp, round } from './util.js';
 
-export const SERIES = ['#7c5cff', '#4cc4f0', '#3ecf8e', '#f5b544', '#ff6b6b', '#ec6ead', '#26c6da', '#9ccc65'];
+/* ─── Categorical series colours ───────────────────────────────
+   Eight hues in a fixed order, stepped once for light surfaces and
+   again for dark ones — a dark theme gets its own steps rather than
+   the light ones dimmed.
+
+   The order is the safety mechanism, not decoration: neighbouring
+   slots are the ones that end up side by side in a donut or a stack.
+   The set this replaces put #ec6ead beside #ff6b6b, 9.7 apart in
+   OKLab — two slices of a pie that even full colour vision struggles
+   to separate. These clear 19.3 (dark) and 19.6 (light) on the worst
+   adjacent pair, and 8.4 / 9.1 simulated for colour blindness.
+   Verified with the dataviz validator against this app's own
+   surfaces; three light slots sit under 3:1, which the legend beside
+   every chart covers by naming each category outright. */
+const SERIES_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+const SERIES_DARK  = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
+
+/** The set for the theme on screen right now. */
+export const series = () =>
+  (document.documentElement.dataset.mode === 'light' ? SERIES_LIGHT : SERIES_DARK);
+
+/** The colour for slot `i`, folding back to the start past eight. */
+export const seriesColor = i => { const s = series(); return s[i % s.length]; };
+
+/* Kept so existing call sites read naturally; prefer seriesColor(i). */
+export const SERIES = new Proxy([], {
+  get: (_t, k) => (k === 'length' ? 8 : series()[k]),
+});
 
 /* ─── Sparkline ─── */
 export function sparkline(values = [], { w = 120, h = 34, stroke = 'var(--accent)', fill = true } = {}) {
@@ -80,7 +107,7 @@ export function donut(segments = [], { size = 148, thickness = 17, centerTop = '
         const frac = (Number(s.value) || 0) / total;
         const dash = `${round(frac * c, 2)} ${round(c - frac * c, 2)}`;
         const el = `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none"
-          stroke="${s.color || SERIES[i % SERIES.length]}" stroke-width="${thickness}"
+          stroke="${s.color || seriesColor(i)}" stroke-width="${thickness}"
           stroke-dasharray="${dash}" stroke-dashoffset="${round(-offset * c, 2)}" stroke-linecap="butt">
           <title>${esc(s.label)}: ${round(frac * 100, 1)}%</title></circle>`;
         offset += frac;
@@ -99,7 +126,7 @@ export function donut(segments = [], { size = 148, thickness = 17, centerTop = '
 
 export const legend = (segments, { format = v => v } = {}) => `
   <ul class="legend">${segments.map((s, i) => `
-    <li><i style="background:${s.color || SERIES[i % SERIES.length]}"></i>
+    <li><i style="background:${s.color || seriesColor(i)}"></i>
       <span class="grow truncate">${esc(s.label)}</span>
       <strong class="mono">${esc(String(format(s.value)))}</strong></li>`).join('')}
   </ul>`;

@@ -7,7 +7,7 @@ import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
 import { esc, today, iso, monthKey, monthName, parseISO, fmtMoney, sum, by, pct, plural,
          addDaysISO, fmtDate, round, groupBy } from '../core/util.js';
-import { donut, legend, groupedBars, SERIES } from '../core/charts.js';
+import { donut, legend, groupedBars, seriesColor } from '../core/charts.js';
 
 export const CATEGORIES = {
   income:  ['Salary', 'Freelance', 'Gift', 'Refund', 'Investment', 'Other income'],
@@ -93,20 +93,72 @@ registerView('finance', {
         '<button class="btn btn--primary mt-3" data-new-tx>Record the first one</button>')}</div>`;
     }
 
-    const savingsRate = inc ? Math.round((net / inc) * 100) : 0;
     const expDelta = prevExp ? Math.round(((exp - prevExp) / prevExp) * 100) : null;
+
+    /* Pace. A month is only half an answer without how much of it has gone:
+       €255 on the 21st is a different thing from €255 on the 3rd. */
+    const daysInMonth = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0).getDate();
+    const isThisMonth = mk === monthKey();
+    const dayNow = isThisMonth ? new Date().getDate() : daysInMonth;
+    const perDay = dayNow ? exp / dayNow : 0;
+    const projected = perDay * daysInMonth;
+    const elapsed = pct(dayNow, daysInMonth);
+
+    /* A savings rate is a ratio, and a ratio with almost nothing on the bottom
+       is noise — one €50 gift against a month of spending read as "−411%".
+       Money per day is defined whatever the income was. */
+    const savingsRate = inc > 0 && net >= 0 ? Math.round((net / inc) * 100) : null;
 
     const stats = `<div class="grid grid--stat mb-6">
       ${statTile({ label: 'Income', value: money(inc), sub: plural(tx.filter(t => t.type === 'income').length, 'entry', 'entries'), icon: 'trendUp', tone: 'ok' })}
-      ${statTile({ label: 'Spent', value: money(exp), sub: expDelta != null ? `vs ${money(prevExp)} last month` : 'this month',
-        icon: 'trendDown', tone: 'bad', delta: expDelta })}
+      ${isThisMonth
+        ? statTile({ label: 'Spent', value: money(exp), sub: expDelta != null ? `vs ${money(prevExp)} last month` : 'this month',
+            icon: 'trendDown', tone: 'bad', delta: expDelta })
+        : statTile({ label: 'Spent', value: money(exp), sub: expDelta != null ? `vs ${money(prevExp)} the month before` : 'that month',
+            icon: 'trendDown', tone: 'bad', delta: expDelta })}
       ${statTile({ label: 'Net', value: money(net), sub: net >= 0 ? 'in the black' : 'over budget', icon: 'wallet', tone: net >= 0 ? 'ok' : 'bad' })}
-      ${statTile({ label: 'Saved', value: savingsRate + '%', sub: 'of income kept', icon: 'target', tone: savingsRate >= 20 ? 'ok' : savingsRate >= 0 ? 'warn' : 'bad' })}
+      ${savingsRate != null
+        ? statTile({ label: 'Saved', value: savingsRate + '%', sub: 'of income kept', icon: 'target',
+            tone: savingsRate >= 20 ? 'ok' : 'warn' })
+        : statTile({ label: 'Per day', value: money(perDay), sub: isThisMonth ? `over ${plural(dayNow, 'day')}` : 'across the month',
+            icon: 'activity', tone: '' })}
+    </div>`;
+
+    /* ─── Pace ─── */
+    const budgetTotal = sum(S().budgets.map(b => b.limit));
+    const spentPct = budgetTotal ? pct(exp, budgetTotal) : elapsed;
+    /* Ahead of the calendar is the thing worth noticing: 84% of the budget gone
+       with 70% of the month left to pay for. Status colour never carries this
+       alone — the sentence under the bar says which case it is. */
+    const paceTone = !budgetTotal ? '' : spentPct >= 100 ? 'bad' : spentPct > elapsed + 5 ? 'warn' : 'ok';
+    const paceNote = !budgetTotal
+      ? `${money(perDay)} a day so far · set a budget to see whether that is fast or slow`
+      : spentPct >= 100
+        ? `${money(exp - budgetTotal)} over your ${money(budgetTotal)} of budgets, with ${plural(daysInMonth - dayNow, 'day')} still to go`
+        : spentPct > elapsed + 5
+          ? `Spending faster than the month is passing — ${spentPct}% of budget, ${elapsed}% of September`
+          : `${money(budgetTotal - exp)} of ${money(budgetTotal)} left, and ${plural(daysInMonth - dayNow, 'day')} to go`;
+    const paceHtml = !isThisMonth ? '' : `<div class="card card--pad mb-6 pace">
+      <div class="row row--between row--wrap gap-3">
+        <div>
+          <div class="pace__label">Spent so far</div>
+          <div class="pace__big">${money(exp)}</div>
+        </div>
+        <div class="tr">
+          <div class="pace__label">Day ${dayNow} of ${daysInMonth}</div>
+          <div class="pace__proj">${money(projected)}<span class="dim"> by the ${daysInMonth}th</span></div>
+        </div>
+      </div>
+      <div class="pace__track pace__track--${paceTone || 'plain'} mt-4">
+        <i class="pace__spent" style="width:${Math.min(spentPct, 100)}%"></i>
+        ${budgetTotal ? `<i class="pace__mark" style="left:${elapsed}%" title="${elapsed}% of the month gone"></i>` : ''}
+      </div>
+      <p class="dim mt-2" style="font-size:12px">${paceNote}</p>
     </div>`;
 
     /* category breakdown */
     const byCat = [...groupBy(tx.filter(t => t.type === 'expense'), 'category')]
-      .map(([label, items], i) => ({ label: label || 'Other', value: round(sum(items.map(x => x.amount)), 2), color: SERIES[i % SERIES.length] }))
+      .map(([label, items], i) => ({ label: label || 'Other', value: round(sum(items.map(x => x.amount)), 2), color: seriesColor(i) }))
       .sort((a, b) => b.value - a.value);
 
     /* 6-month trend */
@@ -146,7 +198,10 @@ registerView('finance', {
       <div class="card__body">
         ${budgets.length ? `<div class="budgets">${budgets.map(b => {
           const spent = sum(tx.filter(t => t.type === 'expense' && t.category === b.category).map(t => t.amount));
-          const p = pct(spent, b.limit);
+          // pct() clamps at 100, which is right for a bar and wrong for the
+          // label: €74.70 against a €60 budget is 125%, and saying 100% hides
+          // exactly the part worth knowing.
+          const p = b.limit ? Math.round((spent / b.limit) * 100) : 0;
           const tone = p >= 100 ? 'bad' : p >= 80 ? 'warn' : 'ok';
           return `<button class="budget" data-budget="${esc(b.category)}">
             <div class="row row--between">
@@ -161,29 +216,53 @@ registerView('finance', {
       </div>
     </div>`;
 
+    /* The categories this person actually uses, most-used first — logging a
+       lunch should be one tap and a number, not a trip through a form. */
+    const recentCats = [...groupBy(S().transactions.filter(t => t.type === 'expense'), 'category')]
+      .map(([label, items]) => ({ label: label || 'Other', n: items.length }))
+      .sort((a, b) => b.n - a.n).slice(0, 5);
+    const quickHtml = recentCats.length ? `<div class="quickcats mb-6">
+      ${recentCats.map(c => `<button class="quickcat" data-quick="${esc(c.label)}">
+        ${icon('plus', 'ic ic--sm')}${esc(c.label)}</button>`).join('')}
+    </div>` : '';
+
+    /* Transactions read as a diary, so group them by day with a day's total. */
+    const byDay = [...groupBy(tx, 'date')].sort((a, b) => b[0].localeCompare(a[0]));
+
     const listHtml = `<div class="card">
       <div class="card__head">${icon('list')}<h3>Transactions</h3><span class="nav__badge">${tx.length}</span></div>
       <div class="list">
-        ${tx.length ? tx.map(t => `<div class="list__row">
-          <span class="tx__icon ${t.type === 'income' ? 'is-in' : 'is-out'}">${icon(t.type === 'income' ? 'trendUp' : 'trendDown', 'ic ic--sm')}</span>
-          <div class="list__main">
-            <div class="list__title">${esc(t.description)}</div>
-            <div class="list__sub">${esc(t.category || 'Other')} · ${esc(fmtDate(t.date))}${t.notes ? ` · ${esc(t.notes)}` : ''}</div>
-          </div>
-          <strong class="tx__amt mono ${t.type === 'income' ? 'is-in' : ''}">${t.type === 'income' ? '+' : '−'}${money(t.amount).replace('−', '')}</strong>
-          <div class="list__actions">
-            <button class="icon-btn icon-btn--sm" data-tx-edit="${t.id}">${icon('edit')}</button>
-            <button class="icon-btn icon-btn--sm icon-btn--danger" data-tx-del="${t.id}">${icon('trash')}</button>
-          </div>
-        </div>`).join('') : emptyState('inbox', 'Nothing this month', 'Move to another month or add a transaction.')}
+        ${tx.length ? byDay.map(([date, items]) => {
+          const out = sum(items.filter(t => t.type === 'expense').map(t => t.amount));
+          return `<div class="daygroup">
+            <div class="daygroup__head">
+              <span>${esc(fmtDate(date))}</span>
+              <strong class="mono">${out ? '−' + money(out).replace('−', '') : money(0)}</strong>
+            </div>
+            ${items.map(t => `<div class="list__row">
+              <span class="tx__icon ${t.type === 'income' ? 'is-in' : 'is-out'}">${icon(t.type === 'income' ? 'trendUp' : 'trendDown', 'ic ic--sm')}</span>
+              <div class="list__main">
+                <div class="list__title">${esc(t.description)}</div>
+                <div class="list__sub">${esc(t.category || 'Other')}${t.notes ? ` · ${esc(t.notes)}` : ''}</div>
+              </div>
+              <strong class="tx__amt mono ${t.type === 'income' ? 'is-in' : ''}">${t.type === 'income' ? '+' : '−'}${money(t.amount).replace('−', '')}</strong>
+              <div class="list__actions">
+                <button class="icon-btn icon-btn--sm" data-tx-edit="${t.id}" aria-label="Edit ${esc(t.description)}">${icon('edit')}</button>
+                <button class="icon-btn icon-btn--sm icon-btn--danger" data-tx-del="${t.id}" aria-label="Delete ${esc(t.description)}">${icon('trash')}</button>
+              </div>
+            </div>`).join('')}
+          </div>`;
+        }).join('') : emptyState('inbox', 'Nothing this month', 'Move to another month or add a transaction.')}
       </div>
     </div>`;
 
-    return head + stats + charts + budgetHtml + listHtml;
+    return head + paceHtml + stats + quickHtml + charts + budgetHtml + listHtml;
   },
 
   onMount(root) {
     on(root, 'click', '[data-new-tx]', () => newTransaction({ date: today() }));
+    on(root, 'click', '[data-quick]', (e, el) =>
+      newTransaction({ date: today(), type: 'expense', category: el.dataset.quick }));
     on(root, 'click', '[data-tx-edit]', (e, el) => editTx(el.dataset.txEdit));
     on(root, 'click', '[data-tx-del]', async (e, el) => {
       const t = store.find('transactions', el.dataset.txDel);

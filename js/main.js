@@ -74,7 +74,7 @@ function renderNav() {
     </div>`).join('');
 }
 
-const DEFAULT_TABS = ['dashboard', 'tasks', 'school', 'health'];
+const DEFAULT_TABS = ['dashboard', 'finance', 'school', 'health'];
 
 function renderTabs() {
   const bar = qs('#tabbar');
@@ -301,7 +301,10 @@ async function boot() {
   qs('#scrim').addEventListener('click', closeSidebar);
   qs('#searchBtn').addEventListener('click', () => openPalette());
   qs('#quickAddBtn').addEventListener('click', quickCreate);
-  qs('#themeBtn').addEventListener('click', () => { toggleTheme(); renderChrome(); });
+  qs('#themeBtn').addEventListener('click', () => {
+    toggleTheme(); renderChrome();
+    render();   // chart colours are written into the SVG, so they need repainting
+  });
   qs('#profileChip').addEventListener('click', () => navigate('settings'));
   qs('#modalClose').addEventListener('click', () => modal.close());
   qs('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal' && modal.closable) modal.close(); });

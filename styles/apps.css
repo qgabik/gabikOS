@@ -882,3 +882,32 @@
 }
 .ah__steps em{display:block; margin-top:5px; font-style:normal; font-size:12px;
   line-height:1.55; color:var(--text-3)}
+
+/* ─── Money: pace, quick categories, day grouping ─── */
+.pace__label{font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text-3)}
+.pace__big{font-size:30px;font-weight:750;letter-spacing:-.035em;margin-top:3px;line-height:1.1}
+.pace__proj{font-size:15px;font-weight:650;margin-top:5px;font-variant-numeric:tabular-nums}
+.pace__track{position:relative;height:9px;border-radius:99px;background:var(--surface-3)}
+.pace__spent{position:absolute;inset:0 auto 0 0;border-radius:99px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width var(--t-slow)}
+/* Over budget must not look like a finished progress bar. The sentence under
+   the track names the state too — colour never carries it alone. */
+.pace__track--ok .pace__spent{background:linear-gradient(90deg,var(--ok),#7ee2b8)}
+.pace__track--warn .pace__spent{background:linear-gradient(90deg,var(--warn),#ffd98a)}
+.pace__track--bad .pace__spent{background:linear-gradient(90deg,var(--bad),#ff9e9e)}
+/* where the month itself has got to — spending ahead of this is spending fast */
+.pace__mark{position:absolute;top:-4px;bottom:-4px;width:2px;border-radius:2px;
+  background:var(--text);opacity:.55}
+
+.quickcats{display:flex;gap:8px;flex-wrap:wrap}
+.quickcat{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:99px;
+  font-size:13px;font-weight:600;color:var(--text-2);background:var(--surface);
+  border:1px solid var(--line);transition:all var(--t-fast)}
+.quickcat:hover{border-color:var(--accent);color:var(--text)}
+.quickcat .ic{color:var(--accent)}
+
+.daygroup+.daygroup{border-top:1px solid var(--line)}
+.daygroup__head{display:flex;justify-content:space-between;align-items:baseline;
+  padding:11px 16px 5px;font-size:12px;font-weight:600;color:var(--text-3)}
+.daygroup__head strong{font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
