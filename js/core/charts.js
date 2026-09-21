@@ -124,10 +124,14 @@ export function donut(segments = [], { size = 148, thickness = 17, centerTop = '
   </div>`;
 }
 
-export const legend = (segments, { format = v => v } = {}) => `
+/** `sub` is an optional second figure — a share, a count — kept as its own
+ *  field rather than markup smuggled through `format`, so every string the
+ *  legend prints still goes through esc(). */
+export const legend = (segments, { format = v => v, sub = null } = {}) => `
   <ul class="legend">${segments.map((s, i) => `
     <li><i style="background:${s.color || seriesColor(i)}"></i>
-      <span class="grow truncate">${esc(s.label)}</span>
+      <span class="grow truncate">${esc(s.label)}${
+        sub ? ` <small class="legend__sub">${esc(String(sub(s)))}</small>` : ''}</span>
       <strong class="mono">${esc(String(format(s.value)))}</strong></li>`).join('')}
   </ul>`;
 

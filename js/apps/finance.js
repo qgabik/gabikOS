@@ -129,14 +129,30 @@ registerView('finance', {
        Money per day is defined whatever the income was. */
     const savingsRate = inc > 0 && net >= 0 ? Math.round((net / inc) * 100) : null;
 
+    /* What you have spent today — the one figure worth knowing before you
+       spend again, and the only one none of the others answers. */
+    const todayOut = sum(tx.filter(t => t.type === 'expense' && t.date === today()).map(t => t.amount));
+
     /* Two numbers the hero does not already carry. Spent lives in the pace
        card above; repeating it here only pushed everything else down. */
-    const stats = `<div class="grid grid--2 mb-6">
-      ${statTile({ label: 'Income', value: money(inc),
-        sub: plural(tx.filter(t => t.type === 'income').length, 'entry', 'entries'), icon: 'trendUp', tone: 'ok' })}
-      ${statTile({ label: net >= 0 ? 'Kept' : 'Short by', value: money(Math.abs(net)),
-        sub: savingsRate != null ? `${savingsRate}% of income` : `${money(perDay)} a day`,
-        icon: 'wallet', tone: net >= 0 ? 'ok' : 'bad' })}
+    /* Three figures that fit across a phone. Full stat tiles here meant three
+       stacked blocks and 450px before anything else; these are the same
+       numbers in a strip. */
+    const miniStat = (label, value, sub, tone = '') =>
+      `<div class="ministat ${tone ? 'is-' + tone : ''}">
+        <span class="ministat__label">${esc(label)}</span>
+        <strong class="ministat__value">${esc(value)}</strong>
+        <span class="ministat__sub">${esc(sub)}</span>
+      </div>`;
+
+    const stats = `<div class="ministats mb-6">
+      ${isThisMonth ? miniStat('Today', money(todayOut),
+        todayOut ? `avg ${money(perDay)}` : 'nothing yet',
+        todayOut > perDay * 1.5 ? 'warn' : '') : ''}
+      ${miniStat('Income', money(inc), plural(tx.filter(t => t.type === 'income').length, 'entry', 'entries'), 'ok')}
+      ${miniStat(net >= 0 ? 'Kept' : 'Short', money(Math.abs(net)),
+        savingsRate != null ? `${savingsRate}% of income` : `${money(perDay)}/day`,
+        net >= 0 ? 'ok' : 'bad')}
     </div>`;
 
     /* ─── Pace ─── */
@@ -162,6 +178,9 @@ registerView('finance', {
         <div class="tr">
           <div class="pace__label">Day ${dayNow} of ${daysInMonth}</div>
           <div class="pace__proj">${money(projected)}<span class="dim"> by the ${daysInMonth}th</span></div>
+          ${expDelta != null ? `<div class="pace__vs ${expDelta > 0 ? 'is-up' : 'is-down'}">
+            ${icon(expDelta > 0 ? 'trendUp' : 'trendDown', 'ic ic--sm')}${Math.abs(expDelta)}% vs ${money(prevExp)} last month
+          </div>` : ''}
         </div>
       </div>
       <div class="pace__track pace__track--${paceTone || 'plain'} mt-4">
@@ -176,33 +195,41 @@ registerView('finance', {
       .map(([label, items], i) => ({ label: label || 'Other', value: round(sum(items.map(x => x.amount)), 2), color: seriesColor(i) }))
       .sort((a, b) => b.value - a.value);
 
-    /* 6-month trend */
-    const months = [];
+    /* Six months of which four are empty is most of a screen showing nothing.
+       Drop the blank run at the start, and skip the chart entirely until
+       there are two months to compare. */
+    const allMonths = [];
     for (let i = 5; i >= 0; i--) {
       const d = parseISO(mk + '-01'); d.setMonth(d.getMonth() - i);
       const k = monthKey(d);
-      months.push({ label: monthName(d.getMonth(), true), income: monthIncome(k), expense: monthExpense(k) });
+      allMonths.push({ label: monthName(d.getMonth(), true), income: monthIncome(k), expense: monthExpense(k) });
     }
+    const firstUsed = allMonths.findIndex(m => m.income || m.expense);
+    const months = firstUsed < 0 ? [] : allMonths.slice(firstUsed);
+    const showTrend = months.filter(m => m.income || m.expense).length >= 2;
 
     const charts = `<div class="grid grid--2 mb-6">
       <div class="card">
-        <div class="card__head">${icon('pie')}<h3>Where it went</h3></div>
+        <div class="card__head">${icon('pie')}<h3>Where it went</h3>
+          <span class="chip">${plural(byCat.length, 'category', 'categories')}</span></div>
         <div class="card__body">
           ${byCat.length ? `<div class="donut-row">
             ${donut(byCat.slice(0, 8), { centerTop: money(exp), centerSub: 'spent' })}
-            <div class="grow">${legend(byCat.slice(0, 7), { format: money })}</div>
+            <div class="grow">${legend(byCat.slice(0, 7), {
+              format: money, sub: seg => `${pct(seg.value, exp)}%`,
+            })}</div>
           </div>` : '<div class="chart-empty">No expenses this month</div>'}
         </div>
       </div>
-      <div class="card">
-        <div class="card__head">${icon('chart')}<h3>Last 6 months</h3></div>
+      ${showTrend ? `<div class="card">
+        <div class="card__head">${icon('chart')}<h3>${esc(plural(months.length, 'month'))} back</h3></div>
         <div class="card__body">
           ${groupedBars(months, [
-            { key: 'income', label: 'Income', color: '#3ecf8e' },
-            { key: 'expense', label: 'Spent', color: '#ff6b6b' },
-          ], { format: money })}
+            { key: 'income', label: 'In', color: 'var(--ok)' },
+            { key: 'expense', label: 'Out', color: 'var(--bad)' },
+          ], { format: money, height: 130 })}
         </div>
-      </div>
+      </div>` : ''}
     </div>`;
 
     /* budgets */
@@ -245,6 +272,24 @@ registerView('finance', {
       </div>
     </div>`;
 
+    /* Tapping a chip on the Overview and landing back on the Overview with
+       nothing to show for it reads as a failure. The last few, and a way
+       through to the rest. */
+    const recentHtml = !tx.length ? '' : `<div class="card mb-6">
+      <div class="card__head">${icon('clock')}<h3>Latest</h3>
+        <button class="btn btn--sm btn--ghost" data-view="history">All ${tx.length}${icon('chevronRight')}</button></div>
+      <div class="list">
+        ${tx.slice(0, 3).map(t => `<div class="list__row">
+          <span class="tx__icon ${t.type === 'income' ? 'is-in' : 'is-out'}">${icon(t.type === 'income' ? 'trendUp' : 'trendDown', 'ic ic--sm')}</span>
+          <div class="list__main">
+            <div class="list__title">${esc(t.description)}</div>
+            <div class="list__sub">${esc(t.category || 'Other')} · ${esc(fmtDate(t.date))}</div>
+          </div>
+          <strong class="tx__amt mono ${t.type === 'income' ? 'is-in' : ''}">${t.type === 'income' ? '+' : '−'}${money(t.amount).replace('−', '')}</strong>
+        </div>`).join('')}
+      </div>
+    </div>`;
+
     /* Transactions read as a diary, so group them by day with a day's total. */
     const byDay = [...groupBy(tx, 'date')].sort((a, b) => b[0].localeCompare(a[0]));
 
@@ -277,7 +322,7 @@ registerView('finance', {
 
     if (view === 'budgets') return head + monthBar + budgetHtml;
     if (view === 'history')  return head + monthBar + quickHtml + listHtml;
-    return head + monthBar + paceHtml + quickHtml + stats + charts;
+    return head + monthBar + paceHtml + quickHtml + stats + recentHtml + charts;
   },
 
   onMount(root) {
