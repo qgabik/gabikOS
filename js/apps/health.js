@@ -394,7 +394,9 @@ async function openBridge(tab = 'link') {
           <li>Search <strong>Find Health Samples</strong>. Tap the blue words and change them:
             the first to <strong>Steps</strong>, then <strong>Add Filter</strong> →
             <strong>Start Date</strong> → <strong>is today</strong>.
-            <em>It should read: Find All Steps where Start Date is today.</em></li>
+            <em>It should read: Find All Steps where Start Date is today. If you have an Apple Watch
+            or another step-counting app, add one more filter — <strong>Source</strong> → your iPhone —
+            or the total comes out roughly double.</em></li>
           <li>Search <strong>Calculate Statistics</strong>. Make sure it says <strong>Sum</strong>.
             <em>Health stores your steps in dozens of small bursts — this adds them up. Skip it and
             you get a number like 7.</em></li>
