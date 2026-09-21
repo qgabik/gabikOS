@@ -24,7 +24,7 @@ export function blankState() {
       goals: { water: 8, steps: 8000, sleep: 8, focusMins: 120 },
       school: { days: 5, periods: [] },
       health: { linked: false, autoPull: true, lastAt: 0, lastSource: '', lastDays: 0,
-                shortcutName: 'Steps to GabikOS' },
+                shortcutName: 'Steps to GabikOS', autoRefresh: false },
       sidebarCollapsed: false,
       pinned: ['dashboard', 'tasks', 'habits', 'notes'],
     },

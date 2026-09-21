@@ -11,7 +11,7 @@ import { registerView, navigate, render, refreshIf } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, statTile, modal } from '../core/ui.js';
 import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, clamp,
-         plural, dayName, parseISO, download, pickFile } from '../core/util.js';
+         plural, dayName, parseISO, download, pickFile, relTime } from '../core/util.js';
 import { lineChart, barChart } from '../core/charts.js';
 import { BUILD } from '../config.js';
 import { readLink, stripLink, normalizeSample, minutesBetween, clockMins,
@@ -39,6 +39,35 @@ const onApple = () => /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (/Mac/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const runShortcutUrl = () =>
   `shortcuts://run-shortcut?name=${encodeURIComponent(hs().shortcutName || 'Steps to GabikOS')}`;
+
+/* A reading is frozen at the moment the shortcut ran, so the gap against the
+   Health app grows with every step taken afterwards. Past this, it is worth
+   replacing rather than explaining. */
+const STALE_AFTER = 5 * 60 * 1000;
+const READING_GUARD = 'gabikos:ah-autorun';
+
+export const stepsReadAt = (m = metricFor()) =>
+  (m?.src?.steps === 'apple' && m?.srcAt?.steps) ? m.srcAt.steps : 0;
+
+/**
+ * Ask the phone for a fresh count when this screen opens.
+ *
+ * The shortcut answers by opening GabikOS again, which would run this a
+ * second time — except that its reading is then seconds old, so the
+ * staleness test below stops the loop on its own. The stored stamp is the
+ * belt to that braces: it survives the reload the shortcut causes, which a
+ * variable in this module would not.
+ */
+function maybeAutoRefresh() {
+  const h = hs();
+  if (!h.autoRefresh || !h.linked || !onApple()) return;
+  if (Date.now() - stepsReadAt() < STALE_AFTER) return;
+  try {
+    if (Number(sessionStorage.getItem(READING_GUARD) || 0) > Date.now() - 60_000) return;
+    sessionStorage.setItem(READING_GUARD, String(Date.now()));
+  } catch { return; }          // no session storage means no loop guard, so do not risk it
+  location.href = runShortcutUrl();
+}
 
 /* ─── Daily metrics ─── */
 export const metricFor = (date = today()) => S().metrics.find(m => m.date === date);
@@ -338,7 +367,9 @@ function bridgeStrip() {
   const m = metricFor() || {};
   const auto = m.src?.steps === 'apple' || m.src?.sleepMins === 'apple';
   const when = h.lastAt ? fmtDate(new Date(h.lastAt).toISOString().slice(0, 10)) : '';
-  const readAt = m.srcAt?.steps && m.src?.steps === 'apple' ? clockOf(m.srcAt.steps) : '';
+  const at = stepsReadAt(m);
+  const readAt = at ? clockOf(at) : '';
+  const stale = at && Date.now() - at > 30 * 60 * 1000;
   return `<div class="card card--pad mb-4 bridge ${h.linked ? 'is-on' : ''}">
     <div class="row gap-3 row--wrap">
       <span class="stat__icon">${icon(h.linked ? 'heart' : 'link')}</span>
@@ -348,15 +379,16 @@ function bridgeStrip() {
           ${h.linked
             ? (auto
                 ? (readAt
-                    ? `Read from your iPhone at ${esc(readAt)}. Your phone keeps counting after that.`
+                    ? `Read from your iPhone ${esc(relTime(at))}, at ${esc(readAt)}.${
+                        stale ? ' Your count has moved on since — update it.' : ''}`
                     : 'Today’s steps and sleep came from your iPhone.')
                 : `Waiting for today’s reading${when ? ` · last one ${esc(when.toLowerCase())}` : ''}.`)
             : 'Let your iPhone send today’s steps and sleep here by itself.'}
         </p>
       </div>
       <div class="row gap-2">
-        ${h.linked && onApple() ? `<a class="btn btn--sm btn--primary" href="${esc(runShortcutUrl())}"
-          >${icon('refresh')}Update now</a>` : ''}
+        ${h.linked && onApple() ? `<a class="btn btn--sm ${stale || !at ? 'btn--primary' : ''}"
+          href="${esc(runShortcutUrl())}">${icon('refresh')}Update now</a>` : ''}
         ${h.linked ? `<button class="btn btn--sm" data-ah-sync title="Check the cloud for readings">${icon('cloud')}<span class="hide-sm">Check</span></button>` : ''}
         <button class="btn btn--sm ${h.linked ? '' : 'btn--primary'}" data-ah-setup>${icon('settings')}${h.linked ? 'Settings' : 'Set up'}</button>
       </div>
@@ -436,9 +468,18 @@ async function openBridge(tab = 'link') {
             <button class="btn btn--sm" data-ah-name>${icon('check')}Save</button>
           </div>
           <p class="dim mt-1" style="font-size:11.5px">Type it exactly as it appears in Shortcuts.
-            This is what the <strong>Update now</strong> button runs — a reading is only as fresh as
-            the last time the shortcut ran.</p>
-        </div>` : ''}
+            This is what the <strong>Update now</strong> button runs.</p>
+        </div>
+
+        <label class="check callout-inline mt-3">
+          <input type="checkbox" data-ah-auto${hs().autoRefresh ? ' checked' : ''} />
+          <span class="check__box"><svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg></span>
+          <span><strong>Take a fresh reading when I open Health</strong>
+            <small>Your count is frozen at the moment the shortcut last ran, so it drifts further
+            behind the Health app as the day goes on. With this on, opening this screen asks your
+            phone for the current figure — you will see Shortcuts flash past for a moment. Only if
+            the last reading is over five minutes old.</small></span>
+        </label>` : ''}
       </div>
     </div>
 
@@ -564,6 +605,11 @@ function wireBridge(root) {
   });
 
   on(root, 'click', '[data-ah-sync]', () => syncAppleHealth({ quiet: false }));
+
+  on(root, 'change', '[data-ah-auto]', (e, el) => {
+    store.setSetting('health.autoRefresh', el.checked);
+    toast(el.checked ? 'GabikOS will ask your phone when you open Health' : 'Left as it is', 'ok');
+  });
 
   on(root, 'click', '[data-ah-name]', () => {
     const name = root.querySelector('#ahName')?.value.trim();
@@ -819,7 +865,7 @@ registerView('health', {
       <div class="hrings">
         ${ring(m.steps, g.steps, '#3ecf8e', 'Steps', m.steps != null
           ? `${Number(m.steps).toLocaleString()} of ${Number(g.steps).toLocaleString()}${
-              m.src?.steps === 'apple' && m.srcAt?.steps ? ` · at ${clockOf(m.srcAt.steps)}` : ''}`
+              stepsReadAt(m) ? ` · read ${relTime(stepsReadAt(m))}` : ''}`
           : 'nothing yet today')}
         ${ring(mins, goalMins, '#a78bfa', 'Sleep', mins != null ? `${fmtSleep(mins)} of ${g.sleep}h` : 'log last night')}
         ${ring(m.water, g.water, '#4cc4f0', 'Water', `${m.water || 0} of ${g.water} glasses`)}
@@ -901,6 +947,7 @@ registerView('health', {
 
     // Opening Health is the natural moment to see whether the phone sent anything.
     if (hs().linked && hs().autoPull !== false) syncAppleHealth({ quiet: true });
+    setTimeout(maybeAutoRefresh, 500);   // let the screen paint before leaving it
   },
 });
 
