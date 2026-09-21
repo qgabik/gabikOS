@@ -12,7 +12,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /** Bumped with each release, so a screenshot says which copy is running. */
-export const BUILD = '2026-09-21 · 10';
+export const BUILD = '2026-09-21 · 11';
 
 export const DEFAULT_SUPABASE = {
   url: 'https://meuwvywebbvwaprumshm.supabase.co',

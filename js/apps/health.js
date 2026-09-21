@@ -40,6 +40,16 @@ const onApple = () => /iPhone|iPad|iPod/.test(navigator.userAgent) ||
 const runShortcutUrl = () =>
   `shortcuts://run-shortcut?name=${encodeURIComponent(hs().shortcutName || 'Steps to GabikOS')}`;
 
+/**
+ * Added to the home screen, GabikOS runs as a standalone web app, and iOS
+ * does not let one of those open another app — a shortcuts:// link is
+ * simply ignored, with no error. The same link works in an ordinary Safari
+ * tab. There is no way to ask in advance, so the app tries once and watches
+ * whether the phone actually left the page.
+ */
+const inStandalone = () => window.navigator.standalone === true ||
+  !!window.matchMedia?.('(display-mode: standalone)').matches;
+
 /* A reading is frozen at the moment the shortcut ran, so the gap against the
    Health app grows with every step taken afterwards. Past this, it is worth
    replacing rather than explaining. */
@@ -61,12 +71,39 @@ export const stepsReadAt = (m = metricFor()) =>
 function maybeAutoRefresh() {
   const h = hs();
   if (!h.autoRefresh || !h.linked || !onApple()) return;
+  if (h.shortcutBlocked) return;                 // tried before, the phone ignored it
   if (Date.now() - stepsReadAt() < STALE_AFTER) return;
   try {
     if (Number(sessionStorage.getItem(READING_GUARD) || 0) > Date.now() - 60_000) return;
     sessionStorage.setItem(READING_GUARD, String(Date.now()));
   } catch { return; }          // no session storage means no loop guard, so do not risk it
+  watchShortcutJump({ auto: true });
   location.href = runShortcutUrl();
+}
+
+/**
+ * Did the phone actually switch to Shortcuts? If the page is still in front
+ * a couple of seconds later, it did not, and there is no point offering a
+ * button that does nothing — so remember that and say what does work.
+ */
+function watchShortcutJump({ auto = false } = {}) {
+  let left = false;
+  const mark = () => { left = true; };
+  addEventListener('pagehide', mark, { once: true });
+  addEventListener('visibilitychange', mark, { once: true });
+  setTimeout(() => {
+    removeEventListener('pagehide', mark);
+    removeEventListener('visibilitychange', mark);
+    if (left || document.visibilityState === 'hidden') return;      // it worked
+    store.setSetting('health.shortcutBlocked', true);
+    if (!auto) {
+      toast(inStandalone()
+        ? 'Added to your home screen, GabikOS cannot open Shortcuts. Use an automation instead — tap Set up.'
+        : 'Your phone did not open Shortcuts. Check the name matches under Set up.',
+        'warn', { duration: 9000 });
+    }
+    render();
+  }, 2500);
 }
 
 /* ─── Daily metrics ─── */
@@ -380,15 +417,19 @@ function bridgeStrip() {
             ? (auto
                 ? (readAt
                     ? `Read from your iPhone ${esc(relTime(at))}, at ${esc(readAt)}.${
-                        stale ? ' Your count has moved on since — update it.' : ''}`
+                        stale ? (h.shortcutBlocked
+                          ? ' A few daily automations will keep it up to date — tap Keep it fresh.'
+                          : ' Your count has moved on since — update it.') : ''}`
                     : 'Today’s steps and sleep came from your iPhone.')
                 : `Waiting for today’s reading${when ? ` · last one ${esc(when.toLowerCase())}` : ''}.`)
             : 'Let your iPhone send today’s steps and sleep here by itself.'}
         </p>
       </div>
       <div class="row gap-2">
-        ${h.linked && onApple() ? `<a class="btn btn--sm ${stale || !at ? 'btn--primary' : ''}"
-          href="${esc(runShortcutUrl())}">${icon('refresh')}Update now</a>` : ''}
+        ${h.linked && onApple() && !h.shortcutBlocked ? `<a class="btn btn--sm ${stale || !at ? 'btn--primary' : ''}"
+          href="${esc(runShortcutUrl())}" data-ah-run>${icon('refresh')}Update now</a>` : ''}
+        ${h.linked && onApple() && h.shortcutBlocked ? `<button class="btn btn--sm" data-ah-setup>
+          ${icon('clock')}Keep it fresh</button>` : ''}
         ${h.linked ? `<button class="btn btn--sm" data-ah-sync title="Check the cloud for readings">${icon('cloud')}<span class="hide-sm">Check</span></button>` : ''}
         <button class="btn btn--sm ${h.linked ? '' : 'btn--primary'}" data-ah-setup>${icon('settings')}${h.linked ? 'Settings' : 'Set up'}</button>
       </div>
@@ -470,6 +511,19 @@ async function openBridge(tab = 'link') {
           <p class="dim mt-1" style="font-size:11.5px">Type it exactly as it appears in Shortcuts.
             This is what the <strong>Update now</strong> button runs.</p>
         </div>
+
+        ${inStandalone() || hs().shortcutBlocked ? `
+        <div class="callout callout--warn mt-3" style="padding:12px 14px">
+          <p style="font-size:13px;line-height:1.6"><strong>On your home screen, GabikOS cannot open
+            Shortcuts.</strong> iOS does not allow an app added to the home screen to launch another
+            one, so <em>Update now</em> is ignored with no error. Two things do work:</p>
+          <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.7">
+            <li>Make several <strong>Time of Day</strong> automations — 08:00, 13:00, 18:00, 22:00 —
+              so the count keeps up on its own.</li>
+            <li>Open <strong>gabik-os.vercel.app in Safari</strong> rather than from the home screen;
+              the button works in an ordinary tab.</li>
+          </ul>
+        </div>` : ''}
 
         <label class="check callout-inline mt-3">
           <input type="checkbox" data-ah-auto${hs().autoRefresh ? ' checked' : ''} />
@@ -937,6 +991,7 @@ registerView('health', {
     on(root, 'click', '[data-wake]', () => stampWake());
     on(root, 'click', '[data-night]', (e, el) => editNight(el.dataset.night || today()));
     on(root, 'click', '[data-ah-setup]', () => openBridge());
+    on(root, 'click', '[data-ah-run]', () => watchShortcutJump());
     on(root, 'click', '[data-ah-sync]', () => syncAppleHealth({ quiet: false }));
     on(root, 'click', '[data-wdel]', async (e, el) => {
       const w = store.find('workouts', el.dataset.wdel);
