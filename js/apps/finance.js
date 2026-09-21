@@ -79,22 +79,6 @@ registerView('finance', {
     const prevExp = monthExpense(prevMk);
     const mDate = parseISO(mk + '-01');
 
-    const head = pageHead('Money', `${monthName(mDate.getMonth())} ${mDate.getFullYear()}`, `
-      <div class="seg">
-        <button data-m-nav="-1" aria-label="Previous month">${icon('chevronLeft')}</button>
-        <button data-m-nav="0">This month</button>
-        <button data-m-nav="1" aria-label="Next month">${icon('chevronRight')}</button>
-      </div>
-      <button class="btn btn--primary" data-new-tx>${icon('plus')}<span class="hide-sm">Transaction</span></button>`, 'wallet');
-
-    if (!S().transactions.length) {
-      return head + `<div class="card">${emptyState('wallet', 'No transactions yet',
-        'Track what comes in and what goes out. A month of honest data changes how you spend.',
-        '<button class="btn btn--primary mt-3" data-new-tx>Record the first one</button>')}</div>`;
-    }
-
-    const expDelta = prevExp ? Math.round(((exp - prevExp) / prevExp) * 100) : null;
-
     /* Pace. A month is only half an answer without how much of it has gone:
        €255 on the 21st is a different thing from €255 on the 3rd. */
     const daysInMonth = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0).getDate();
@@ -104,24 +88,55 @@ registerView('finance', {
     const projected = perDay * daysInMonth;
     const elapsed = pct(dayNow, daysInMonth);
 
+
+    /* One column of everything meant 3,000 pixels of scrolling to reach a
+       receipt. Three short screens instead, the way every other module here
+       is arranged. */
+    const view = p.view || 'overview';
+    const head = pageHead('Money',
+      S().transactions.length ? `${money(exp)} out · ${money(inc)} in` : 'Income, spending and budgets', `
+      <div class="seg">
+        ${[['overview', 'Overview'], ['budgets', 'Budgets'], ['history', 'History']]
+          .map(([k, l]) => `<button class="${view === k ? 'is-on' : ''}" data-view="${k}">${esc(l)}</button>`).join('')}
+      </div>
+      <button class="btn btn--primary" data-new-tx>${icon('plus')}<span class="hide-sm">Add</span></button>`, 'wallet');
+
+    /* The month is shared by all three, so it sits above them rather than
+       inside one. */
+    const monthBar = `<div class="monthbar mb-5">
+      <button class="icon-btn icon-btn--sm" data-m-nav="-1" aria-label="Previous month">${icon('chevronLeft')}</button>
+      <div class="monthbar__label">
+        <strong>${esc(monthName(mDate.getMonth()))} ${mDate.getFullYear()}</strong>
+        ${isThisMonth ? '<span>this month</span>' : `<button class="linkbtn" data-m-nav="0">back to this month</button>`}
+      </div>
+      <button class="icon-btn icon-btn--sm" data-m-nav="1" aria-label="Next month"
+        ${isThisMonth ? 'disabled' : ''}>${icon('chevronRight')}</button>
+    </div>`;
+
+    /* Only the Overview needs first-run copy. Budgets and History have their
+       own empty states, and a budget is something you might well want to set
+       before recording anything at all. */
+    if (!S().transactions.length && view === 'overview') {
+      return head + `<div class="card">${emptyState('wallet', 'No transactions yet',
+        'Track what comes in and what goes out. A month of honest data changes how you spend.',
+        '<button class="btn btn--primary mt-3" data-new-tx>Record the first one</button>')}</div>`;
+    }
+
+    const expDelta = prevExp ? Math.round(((exp - prevExp) / prevExp) * 100) : null;
+
     /* A savings rate is a ratio, and a ratio with almost nothing on the bottom
        is noise — one €50 gift against a month of spending read as "−411%".
        Money per day is defined whatever the income was. */
     const savingsRate = inc > 0 && net >= 0 ? Math.round((net / inc) * 100) : null;
 
-    const stats = `<div class="grid grid--stat mb-6">
-      ${statTile({ label: 'Income', value: money(inc), sub: plural(tx.filter(t => t.type === 'income').length, 'entry', 'entries'), icon: 'trendUp', tone: 'ok' })}
-      ${isThisMonth
-        ? statTile({ label: 'Spent', value: money(exp), sub: expDelta != null ? `vs ${money(prevExp)} last month` : 'this month',
-            icon: 'trendDown', tone: 'bad', delta: expDelta })
-        : statTile({ label: 'Spent', value: money(exp), sub: expDelta != null ? `vs ${money(prevExp)} the month before` : 'that month',
-            icon: 'trendDown', tone: 'bad', delta: expDelta })}
-      ${statTile({ label: 'Net', value: money(net), sub: net >= 0 ? 'in the black' : 'over budget', icon: 'wallet', tone: net >= 0 ? 'ok' : 'bad' })}
-      ${savingsRate != null
-        ? statTile({ label: 'Saved', value: savingsRate + '%', sub: 'of income kept', icon: 'target',
-            tone: savingsRate >= 20 ? 'ok' : 'warn' })
-        : statTile({ label: 'Per day', value: money(perDay), sub: isThisMonth ? `over ${plural(dayNow, 'day')}` : 'across the month',
-            icon: 'activity', tone: '' })}
+    /* Two numbers the hero does not already carry. Spent lives in the pace
+       card above; repeating it here only pushed everything else down. */
+    const stats = `<div class="grid grid--2 mb-6">
+      ${statTile({ label: 'Income', value: money(inc),
+        sub: plural(tx.filter(t => t.type === 'income').length, 'entry', 'entries'), icon: 'trendUp', tone: 'ok' })}
+      ${statTile({ label: net >= 0 ? 'Kept' : 'Short by', value: money(Math.abs(net)),
+        sub: savingsRate != null ? `${savingsRate}% of income` : `${money(perDay)} a day`,
+        icon: 'wallet', tone: net >= 0 ? 'ok' : 'bad' })}
     </div>`;
 
     /* ─── Pace ─── */
@@ -221,10 +236,14 @@ registerView('finance', {
     const recentCats = [...groupBy(S().transactions.filter(t => t.type === 'expense'), 'category')]
       .map(([label, items]) => ({ label: label || 'Other', n: items.length }))
       .sort((a, b) => b.n - a.n).slice(0, 5);
-    const quickHtml = recentCats.length ? `<div class="quickcats mb-6">
-      ${recentCats.map(c => `<button class="quickcat" data-quick="${esc(c.label)}">
-        ${icon('plus', 'ic ic--sm')}${esc(c.label)}</button>`).join('')}
-    </div>` : '';
+    const quickHtml = `<div class="quickadd mb-6">
+      <span class="quickadd__label">${icon('zap', 'ic ic--sm')}Log in one tap</span>
+      <div class="quickcats">
+        ${recentCats.map(c => `<button class="quickcat" data-quick="${esc(c.label)}">
+          ${esc(c.label)}</button>`).join('')}
+        <button class="quickcat quickcat--more" data-new-tx>${icon('plus', 'ic ic--sm')}Other</button>
+      </div>
+    </div>`;
 
     /* Transactions read as a diary, so group them by day with a day's total. */
     const byDay = [...groupBy(tx, 'date')].sort((a, b) => b[0].localeCompare(a[0]));
@@ -256,10 +275,13 @@ registerView('finance', {
       </div>
     </div>`;
 
-    return head + paceHtml + stats + quickHtml + charts + budgetHtml + listHtml;
+    if (view === 'budgets') return head + monthBar + budgetHtml;
+    if (view === 'history')  return head + monthBar + quickHtml + listHtml;
+    return head + monthBar + paceHtml + quickHtml + stats + charts;
   },
 
   onMount(root) {
+    on(root, 'click', '[data-view]', (e, el) => navigate('finance', { ...params(), view: el.dataset.view }));
     on(root, 'click', '[data-new-tx]', () => newTransaction({ date: today() }));
     on(root, 'click', '[data-quick]', (e, el) =>
       newTransaction({ date: today(), type: 'expense', category: el.dataset.quick }));
@@ -278,10 +300,11 @@ registerView('finance', {
     });
     on(root, 'click', '[data-m-nav]', (e, el) => {
       const d = Number(el.dataset.mNav);
-      if (!d) return navigate('finance', {});
+      const keep = params().view ? { view: params().view } : {};
+      if (!d) return navigate('finance', keep);
       const cur = parseISO((params().m || monthKey()) + '-01');
       cur.setMonth(cur.getMonth() + d);
-      navigate('finance', { m: monthKey(cur) });
+      navigate('finance', { ...keep, m: monthKey(cur) });
     });
   },
 });
