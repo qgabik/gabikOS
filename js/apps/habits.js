@@ -5,20 +5,60 @@ import { store, S } from '../core/store.js';
 import { registerView, render, navigate, params } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
-import { esc, today, iso, addDaysISO, diffDays, pct, clamp, plural, dayName, parseISO, round } from '../core/util.js';
+import { esc, today, iso, addDaysISO, diffDays, pct, clamp, plural, dayName, parseISO, round, uid } from '../core/util.js';
 import { heatmap } from '../core/charts.js';
+import { metricFor, setMetric } from './health.js';
+
+/* ─── Habits that are really a number Health already keeps ───
+   "Drink water" and the Water tile were two stores counting the same
+   glasses, so 8/8 on one and 7/8 on the other were both correct. A linked
+   habit does not hold its own tally at all — it reads and writes the
+   metric, so there is one number and nothing to keep in step. */
+export const METRIC_LINKS = [
+  { value: '', label: 'Keep its own count' },
+  { value: 'water', label: 'Water — the glasses in Health' },
+  { value: 'steps', label: 'Steps — the count in Health' },
+  { value: 'sleep', label: 'Sleep — the hours in Health' },
+];
+const linkOf = habitId => store.find('habits', habitId)?.linkedMetric || '';
 
 /* ─── Log access ─── */
-export const logFor = (habitId, date) => S().habitLog?.[habitId]?.[date] || 0;
+export const logFor = (habitId, date) => {
+  const key = linkOf(habitId);
+  if (key) return Number(metricFor(date)?.[key]) || 0;
+  return S().habitLog?.[habitId]?.[date] || 0;
+};
 export const isScheduled = (habit, date) =>
   !habit.schedule?.length || habit.schedule.includes(parseISO(date).getDay());
 
 export function setLog(habitId, date, value) {
+  const key = linkOf(habitId);
+  if (key) { setMetric({ [key]: value > 0 ? value : null }, date); return; }
   store.commit(s => {
     s.habitLog[habitId] ??= {};
     if (value > 0) s.habitLog[habitId][date] = value;
     else delete s.habitLog[habitId][date];
   }, { key: 'habitLog' });
+}
+
+/**
+ * Linking a habit that already has months behind it would make that history
+ * disappear, because the habit stops reading its own log. Move it across
+ * first, in one write, and never over a figure Health already holds.
+ */
+export function adoptHistory(habitId, key) {
+  const log = S().habitLog?.[habitId] || {};
+  const dates = Object.keys(log);
+  if (!dates.length || !key) return 0;
+  let moved = 0;
+  store.commit(st => {
+    for (const d of dates) {
+      const m = st.metrics.find(x => x.date === d);
+      if (m) { if (m[key] == null) { m[key] = log[d]; moved++; } }
+      else { st.metrics.unshift({ id: uid('met'), date: d, [key]: log[d], createdAt: Date.now() }); moved++; }
+    }
+  }, { key: 'metrics' });
+  return moved;
 }
 
 export function bumpHabit(habitId, date = today(), delta = 1) {
@@ -103,6 +143,9 @@ const habitFields = (h = {}) => [
   { name: 'unit', label: 'Unit', type: 'text', half: true, placeholder: 'glasses, pages, reps…', value: h.unit || 'time' },
   { name: 'schedule', label: 'Days', type: 'multiselect', options: DAYS, numeric: true,
     value: h.schedule ?? [1, 2, 3, 4, 5, 6, 0], hint: 'Leave all on for a daily habit' },
+  { name: 'linkedMetric', label: 'Counts the same thing as', type: 'select', options: METRIC_LINKS,
+    value: h.linkedMetric || '',
+    hint: 'Linked, the habit and Health show one number instead of two that drift apart' },
   { name: 'color', label: 'Colour', type: 'color', value: h.color || '#3ecf8e' },
   { name: 'icon', label: 'Icon', type: 'icon', value: h.icon || 'flame' },
   { name: 'why', label: 'Why does this matter?', type: 'textarea', rows: 2, value: h.why,
@@ -122,9 +165,30 @@ async function editHabit(id) {
   if (!h) return;
   const v = await openForm({ title: 'Edit habit', fields: habitFields(h), values: h, submitLabel: 'Save' });
   if (!v) return;
+  const newLink = v.linkedMetric && v.linkedMetric !== h.linkedMetric;
   store.update('habits', id, { ...v, target: Number(v.target) || 1 });
-  toast('Habit updated', 'ok');
+  const moved = newLink ? adoptHistory(id, v.linkedMetric) : 0;
+  toast(moved ? `Linked · ${plural(moved, 'day')} moved into Health` : 'Habit updated', 'ok');
   render();
+}
+
+/**
+ * The starter "Drink water" habit and the Water tile have always counted the
+ * same glasses separately. Join them once, for anyone who already has it,
+ * carrying the habit's own history across. Writing linkedMetric on every
+ * habit — '' for the rest — is what stops this running a second time.
+ */
+export function linkKnownHabits() {
+  const pending = S().habits.filter(h => h.linkedMetric === undefined);
+  if (!pending.length) return 0;
+  let linked = 0;
+  for (const h of pending) {
+    const water = /water/i.test(h.name || '') || /glass/i.test(h.unit || '');
+    const key = water ? 'water' : '';
+    if (key) { adoptHistory(h.id, key); linked++; }
+    store.update('habits', h.id, { linkedMetric: key }, { silentHistory: true });
+  }
+  return linked;
 }
 
 /* ─── Heatmap cells ─── */

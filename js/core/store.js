@@ -275,10 +275,12 @@ export function seedStarter({ onlyIfEmpty = false } = {}) {
       { id: uid('tsk'), title: 'Read 20 pages', done: true, priority: 1, due: t, projectId: p1.id, tags: [], completedAt: Date.now(), createdAt: Date.now() },
     ];
     if (!skip('habits')) s.habits = [
-      { id: uid('hab'), name: 'Workout', icon: 'dumbbell', color: '#3ecf8e', target: 1, unit: 'session', schedule: [1,2,3,4,5,6,0], createdAt: Date.now() },
-      { id: uid('hab'), name: 'Read', icon: 'book', color: '#f5b544', target: 20, unit: 'pages', schedule: [1,2,3,4,5,6,0], createdAt: Date.now() },
-      { id: uid('hab'), name: 'Drink water', icon: 'droplet', color: '#4cc4f0', target: 8, unit: 'glasses', schedule: [1,2,3,4,5,6,0], createdAt: Date.now() },
-      { id: uid('hab'), name: 'No phone in bed', icon: 'moon', color: '#a78bfa', target: 1, unit: 'day', schedule: [1,2,3,4,5,6,0], createdAt: Date.now() },
+      { id: uid('hab'), name: 'Workout', icon: 'dumbbell', color: '#3ecf8e', target: 1, unit: 'session', schedule: [1,2,3,4,5,6,0], linkedMetric: '', createdAt: Date.now() },
+      { id: uid('hab'), name: 'Read', icon: 'book', color: '#f5b544', target: 20, unit: 'pages', schedule: [1,2,3,4,5,6,0], linkedMetric: '', createdAt: Date.now() },
+      /* Linked from the start: this habit and the Water tile count the same
+         glasses, and two tallies of one thing only ever disagree. */
+      { id: uid('hab'), name: 'Drink water', icon: 'droplet', color: '#4cc4f0', target: 8, unit: 'glasses', schedule: [1,2,3,4,5,6,0], linkedMetric: 'water', createdAt: Date.now() },
+      { id: uid('hab'), name: 'No phone in bed', icon: 'moon', color: '#a78bfa', target: 1, unit: 'day', schedule: [1,2,3,4,5,6,0], linkedMetric: '', createdAt: Date.now() },
     ];
     if (!skip('goals')) s.goals = [
       { id: uid('gol'), title: 'Get consistently fit', why: 'More energy, better mood, longer life.',

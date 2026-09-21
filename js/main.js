@@ -27,7 +27,7 @@ import './apps/builder.js';
 import './apps/settings.js';
 
 import { newTask, newProject } from './apps/tasks.js';
-import { newHabit } from './apps/habits.js';
+import { newHabit, linkKnownHabits } from './apps/habits.js';
 import { newNote } from './apps/notes.js';
 import { newEvent } from './apps/calendar.js';
 import { newLesson } from './apps/school.js';
@@ -264,7 +264,7 @@ function onboard() {
           const seed = qs('#obSeed').checked;
           store.setProfile({ name, onboarded: true });
           // the cloud may already have this account's data on the way in
-          if (seed) seedStarter({ onlyIfEmpty: true });
+          if (seed) { seedStarter({ onlyIfEmpty: true }); linkKnownHabits(); }
           modal.close();
           resolve();
         };
@@ -285,6 +285,7 @@ async function boot() {
   // already there, and before the router reads a hash that still has them.
   const healthLink = consumeHealthLink();
 
+  linkKnownHabits();   // joins "Drink water" to the Water tile, once
   applyTheme();
   watchSystemTheme();
   registerCollections();
