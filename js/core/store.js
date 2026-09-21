@@ -4,6 +4,15 @@
 import { uid, today, deep, debounce } from './util.js';
 
 const KEY = 'gabikos:v1';
+
+/** The four shortcuts a phone gets when nobody has chosen otherwise.
+ *  Lives here rather than in main.js so Settings can read it without the
+ *  two importing each other. */
+export const DEFAULT_TABS = ['dashboard', 'finance', 'school', 'health'];
+
+/** What the bar should actually show: a chosen set, else the default. */
+export const barTabs = () =>
+  (store.state.settings.mobileTabs?.length ? store.state.settings.mobileTabs : DEFAULT_TABS).slice(0, 4);
 const SCHEMA = 1;
 
 /* ─── Default state ─── */
@@ -26,6 +35,10 @@ export function blankState() {
       health: { linked: false, autoPull: true, lastAt: 0, lastSource: '', lastDays: 0,
                 shortcutName: 'Steps to GabikOS', autoRefresh: false, shortcutBlocked: false },
       sidebarCollapsed: false,
+      /* The four shortcuts along the bottom of a phone screen. Empty means
+         "use the app's default", so a later change to that default reaches
+         anyone who has not chosen for themselves. */
+      mobileTabs: [],
       pinned: ['dashboard', 'tasks', 'habits', 'notes'],
     },
 

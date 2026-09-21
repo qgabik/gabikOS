@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
    GabikOS — boot
    ═══════════════════════════════════════════════════════════════ */
-import { store, S, settings, profile, seedStarter } from './core/store.js';
+import { store, S, settings, profile, seedStarter, barTabs } from './core/store.js';
 import { startRouter, render, navigate, navViews, currentView, onRender } from './core/router.js';
 import { applyTheme, toggleTheme, watchSystemTheme, hueFor } from './core/theme.js';
 import { icon } from './core/icons.js';
@@ -74,12 +74,10 @@ function renderNav() {
     </div>`).join('');
 }
 
-const DEFAULT_TABS = ['dashboard', 'finance', 'school', 'health'];
-
 function renderTabs() {
   const bar = qs('#tabbar');
   if (!bar) return;
-  const want = (settings().mobileTabs?.length ? settings().mobileTabs : DEFAULT_TABS).slice(0, 4);
+  const want = barTabs();
   const views = want.map(id => navViews().find(v => v.id === id)).filter(Boolean);
   const cur = currentView();
 

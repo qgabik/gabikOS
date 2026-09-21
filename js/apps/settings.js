@@ -1,14 +1,15 @@
 /* ═══════════════════════════════════════════════════════════════
    GabikOS — Settings: identity, appearance, goals, data
    ═══════════════════════════════════════════════════════════════ */
-import { store, S, settings, profile, seedStarter } from '../core/store.js';
-import { registerView, navigate, render, params, allViews } from '../core/router.js';
+import { store, S, settings, profile, seedStarter, barTabs, DEFAULT_TABS } from '../core/store.js';
+import { registerView, navigate, render, params, allViews, navViews } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, pageHead, statTile, qs, qsa } from '../core/ui.js';
 import { esc, download, pickFile, plural, initials, fmtDate, today, cap, relTime } from '../core/util.js';
 import { applyTheme, setTheme, ACCENTS, THEMES, themeById } from '../core/theme.js';
 import { sync, syncNow, syncLabel, onSyncChange } from '../core/sync.js';
 import { accountCard, wireAccount, openAuth } from './account.js';
+import { BUILD } from '../config.js';
 
 export const SHORTCUTS = [
   ['Ctrl / ⌘ + K', 'Open the command palette'],
@@ -167,6 +168,28 @@ registerView('settings', {
                 data-density="${d}">${esc(cap(d))}</button>`).join('')}
             </div>
           </div>
+        </div></div>
+
+      <div class="card mt-4"><div class="card__head">${icon('grid')}<h3>Bar at the bottom</h3>
+        <span class="chip">${esc(String(barTabs().length))} of 4</span></div>
+        <div class="card__body">
+          <p class="dim mb-4" style="font-size:13px">The four shortcuts along the bottom of a phone
+            screen. Pick the ones you open every day — everything else stays one tap away under
+            <strong>More</strong>.</p>
+          <div class="tabpick">
+            ${navViews().map(v => {
+              const on = barTabs().includes(v.id);
+              const full = barTabs().length >= 4;
+              return `<button class="tabpick__opt ${on ? 'is-on' : ''}" data-tabpick="${v.id}"
+                ${!on && full ? 'disabled' : ''} aria-pressed="${on}">
+                ${icon(v.icon || 'chevronRight', 'ic ic--sm')}${esc(v.title)}</button>`;
+            }).join('')}
+          </div>
+          <div class="row gap-2 mt-4 row--wrap">
+            <button class="btn btn--sm btn--ghost" data-tabs-reset>${icon('refresh')}Back to the default</button>
+            <span class="dim" style="font-size:12px">Now: ${esc(barTabs().map(id =>
+              navViews().find(v => v.id === id)?.title || id).join(' · '))}</span>
+          </div>
         </div></div>`;
     }
 
@@ -280,7 +303,7 @@ registerView('settings', {
           <button class="btn" data-shortcuts>${icon('keyboard')}Keyboard shortcuts</button>
           <button class="btn" data-go-builder>${icon('layers')}Open the Builder</button>
         </div>
-        <p class="dim mt-6" style="font-size:12px">Built ${esc(fmtDate(today(), { absolute: true }))} · ${plural(allViews().length, 'module')} loaded</p>
+        <p class="dim mt-6" style="font-size:12px">Build ${esc(BUILD)} · ${plural(allViews().length, 'module')} loaded</p>
       </div>`;
     }
 
@@ -308,6 +331,23 @@ registerView('settings', {
       render();
       document.dispatchEvent(new CustomEvent('gabikos:chrome'));
     });
+    on(root, 'click', '[data-tabpick]', (e, el) => {
+      const id = el.dataset.tabpick;
+      const cur = barTabs();
+      const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id].slice(0, 4);
+      if (!next.length) return toast('Keep at least one', 'warn');
+      store.setSetting('mobileTabs', next);
+      render();
+      document.dispatchEvent(new CustomEvent('gabikos:chrome'));
+    });
+
+    on(root, 'click', '[data-tabs-reset]', () => {
+      store.setSetting('mobileTabs', []);
+      toast(`Back to ${DEFAULT_TABS.length} defaults`, 'ok');
+      render();
+      document.dispatchEvent(new CustomEvent('gabikos:chrome'));
+    });
+
     on(root, 'click', '[data-density]', (e, el) => {
       store.setSetting('density', el.dataset.density);
       applyTheme(); render();

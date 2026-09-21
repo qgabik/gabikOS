@@ -911,3 +911,13 @@
 .daygroup__head{display:flex;justify-content:space-between;align-items:baseline;
   padding:11px 16px 5px;font-size:12px;font-weight:600;color:var(--text-3)}
 .daygroup__head strong{font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+
+/* ─── Choosing what sits in the phone's bottom bar ─── */
+.tabpick{display:flex;flex-wrap:wrap;gap:8px}
+.tabpick__opt{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:99px;
+  font-size:13px;font-weight:600;color:var(--text-2);background:var(--surface-2);
+  border:1px solid var(--line);transition:all var(--t-fast)}
+.tabpick__opt:hover:not(:disabled){border-color:var(--accent);color:var(--text)}
+.tabpick__opt.is-on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.tabpick__opt:disabled{opacity:.4}
+.tabpick__opt .ic{width:15px;height:15px}
