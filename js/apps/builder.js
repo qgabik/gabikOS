@@ -8,7 +8,7 @@ import { registerView, unregisterView, navigate, render, params, currentView } f
 import { icon, PICKABLE } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile, modal, qs } from '../core/ui.js';
 import { esc, uid, today, fmtDate, fmtMoney, by, sum, avg, round, plural, truncate, slug, download } from '../core/util.js';
-import { barChart, donut, legend, SERIES } from '../core/charts.js';
+import { barChart, donut, legend } from '../core/charts.js';
 
 /* ─── Field types ─── */
 export const FIELD_TYPES = [
