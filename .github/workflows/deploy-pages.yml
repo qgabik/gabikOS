@@ -24,6 +24,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A vercel.json Vercel refuses is invisible: that deployment fails and
+      # the previous build keeps serving, so the site simply stops changing
+      # with nothing on it to say so. Fail here instead, where it shows up as
+      # a red cross on the commit.
+      - name: Check the deployment config
+        run: node tools/check-config.mjs
+
       # No enablement flag here: GITHUB_TOKEN cannot create a Pages site
       # ("Resource not accessible by integration"), on public repos too.
       # A repo admin switches Pages on once, under
