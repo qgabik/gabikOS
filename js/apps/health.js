@@ -389,23 +389,26 @@ async function openBridge(tab = 'link') {
 
       <div class="ah__steps">
         <ol>
-          <li>Open the <strong>Shortcuts</strong> app → <strong>+</strong> (top right) → <strong>New Shortcut</strong>.</li>
-          <li>Search <strong>Find Health Samples</strong> and tap it.
-            Tap the blue <strong>Health Samples</strong> word and choose <strong>Steps</strong>.
-            Tap <strong>Add Filter</strong> → <strong>Start Date</strong> → <strong>is today</strong>.</li>
-          <li>Search <strong>Calculate Statistics</strong> and tap it. Set it to <strong>Sum</strong>
-            of <strong>Health Samples</strong>.</li>
-          <li>Search <strong>Text</strong> and tap it. Paste this in:</li>
+          <li>Open the <strong>Shortcuts</strong> app and tap <strong>+</strong> (top right).
+            Everything below gets typed into the search box at the bottom.</li>
+          <li>Search <strong>Find Health Samples</strong>. Tap the blue words and change them:
+            the first to <strong>Steps</strong>, then <strong>Add Filter</strong> →
+            <strong>Start Date</strong> → <strong>is today</strong>.
+            <em>It should read: Find All Steps where Start Date is today.</em></li>
+          <li>Search <strong>Calculate Statistics</strong>. Make sure it says <strong>Sum</strong>.
+            <em>Health stores your steps in dozens of small bursts — this adds them up. Skip it and
+            you get a number like 7.</em></li>
+          <li>Search <strong>Text</strong>, and paste this into the empty box:</li>
         </ol>
         ${copyable('ahLink', '', link,
-          'Now delete nothing — just put the cursor at the very end, after <code>steps=</code>, and tap the <strong>Statistic</strong> variable above the keyboard.')}
+          'Then tap at the very <strong>end</strong>, right after <code>steps=</code>, and tap the blue <strong>Statistic</strong> chip above the keyboard. Nothing comes after it. If you see the word typed out in letters instead of a blue chip, delete it and tap the chip.')}
         <ol start="5">
-          <li>Search <strong>Open URLs</strong> and tap it. It will pick up the Text automatically.</li>
+          <li>Search <strong>Open URLs</strong>. It picks up the text on its own.</li>
           <li>Name it <strong>Steps to GabikOS</strong> and tap <strong>Done</strong>.</li>
         </ol>
-        <p class="ah__tip">${icon('zap', 'ic ic--sm')} Run it once from the Shortcuts app. GabikOS should
-          open with today's steps already in. After that, add it to your home screen, or put it on a
-          <strong>Time of Day</strong> automation so it runs itself.</p>
+        <p class="ah__tip">${icon('zap', 'ic ic--sm')} Run it once. GabikOS should open and tell you
+          your step count. After that, put it on a <strong>Time of Day</strong> automation
+          (Shortcuts → Automation tab) so it runs itself every evening.</p>
       </div>
     </div>
 

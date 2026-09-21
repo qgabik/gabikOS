@@ -880,3 +880,5 @@
     height: 42px; transform: translateY(-50%);
   }
 }
+.ah__steps em{display:block; margin-top:5px; font-style:normal; font-size:12px;
+  line-height:1.55; color:var(--text-3)}
