@@ -30,6 +30,16 @@ const clockLabel = c => (c ? c : '—');
 /** A night belongs to the morning it ends on, the way people tell it. */
 const nightOf = (d = new Date()) => (d.getHours() >= 18 ? addDaysISO(today(), 1) : today());
 
+/** 'HH:MM' for a timestamp, used to date a reading from the phone. */
+const clockOf = ts => (ts ? `${pad2(new Date(ts).getHours())}:${pad2(new Date(ts).getMinutes())}` : '');
+
+/* iOS can be asked to run a shortcut by name straight from a link, which
+   is the only way a web page can make the phone take a fresh reading. */
+const onApple = () => /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (/Mac/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const runShortcutUrl = () =>
+  `shortcuts://run-shortcut?name=${encodeURIComponent(hs().shortcutName || 'Steps to GabikOS')}`;
+
 /* ─── Daily metrics ─── */
 export const metricFor = (date = today()) => S().metrics.find(m => m.date === date);
 
@@ -328,6 +338,7 @@ function bridgeStrip() {
   const m = metricFor() || {};
   const auto = m.src?.steps === 'apple' || m.src?.sleepMins === 'apple';
   const when = h.lastAt ? fmtDate(new Date(h.lastAt).toISOString().slice(0, 10)) : '';
+  const readAt = m.srcAt?.steps && m.src?.steps === 'apple' ? clockOf(m.srcAt.steps) : '';
   return `<div class="card card--pad mb-4 bridge ${h.linked ? 'is-on' : ''}">
     <div class="row gap-3 row--wrap">
       <span class="stat__icon">${icon(h.linked ? 'heart' : 'link')}</span>
@@ -335,13 +346,18 @@ function bridgeStrip() {
         <h3 style="font-size:14px">${h.linked ? 'Apple Health is linked' : 'Bring in Apple Health'}</h3>
         <p class="dim mt-1" style="font-size:12.5px">
           ${h.linked
-            ? (auto ? 'Today’s steps and sleep came from your iPhone.'
-                    : `Waiting for today’s reading${when ? ` · last one ${esc(when.toLowerCase())}` : ''}.`)
+            ? (auto
+                ? (readAt
+                    ? `Read from your iPhone at ${esc(readAt)}. Your phone keeps counting after that.`
+                    : 'Today’s steps and sleep came from your iPhone.')
+                : `Waiting for today’s reading${when ? ` · last one ${esc(when.toLowerCase())}` : ''}.`)
             : 'Let your iPhone send today’s steps and sleep here by itself.'}
         </p>
       </div>
       <div class="row gap-2">
-        ${h.linked ? `<button class="btn btn--sm" data-ah-sync>${icon('refresh')}<span class="hide-sm">Refresh</span></button>` : ''}
+        ${h.linked && onApple() ? `<a class="btn btn--sm btn--primary" href="${esc(runShortcutUrl())}"
+          >${icon('refresh')}Update now</a>` : ''}
+        ${h.linked ? `<button class="btn btn--sm" data-ah-sync title="Check the cloud for readings">${icon('cloud')}<span class="hide-sm">Check</span></button>` : ''}
         <button class="btn btn--sm ${h.linked ? '' : 'btn--primary'}" data-ah-setup>${icon('settings')}${h.linked ? 'Settings' : 'Set up'}</button>
       </div>
     </div>
@@ -411,6 +427,18 @@ async function openBridge(tab = 'link') {
         <p class="ah__tip">${icon('zap', 'ic ic--sm')} Run it once. GabikOS should open and tell you
           your step count. After that, put it on a <strong>Time of Day</strong> automation
           (Shortcuts → Automation tab) so it runs itself every evening.</p>
+        ${onApple() ? `
+        <div class="ah__field mt-4">
+          <label for="ahName">What did you name the shortcut?</label>
+          <div class="row gap-2">
+            <input class="input" id="ahName" value="${esc(hs().shortcutName || 'Steps to GabikOS')}"
+              placeholder="Steps to GabikOS" aria-label="Shortcut name">
+            <button class="btn btn--sm" data-ah-name>${icon('check')}Save</button>
+          </div>
+          <p class="dim mt-1" style="font-size:11.5px">Type it exactly as it appears in Shortcuts.
+            This is what the <strong>Update now</strong> button runs — a reading is only as fresh as
+            the last time the shortcut ran.</p>
+        </div>` : ''}
       </div>
     </div>
 
@@ -536,6 +564,15 @@ function wireBridge(root) {
   });
 
   on(root, 'click', '[data-ah-sync]', () => syncAppleHealth({ quiet: false }));
+
+  on(root, 'click', '[data-ah-name]', () => {
+    const name = root.querySelector('#ahName')?.value.trim();
+    if (!name) return toast('Give it the name you used in Shortcuts', 'warn');
+    store.setSetting('health.shortcutName', name);
+    toast(`“Update now” will run “${name}”`, 'ok');
+    render();      // the button behind the panel is built from this name
+
+  });
 
   on(root, 'click', '[data-ah-diagnose]', async (e, el) => {
     const out = root.querySelector('#ahResult');
@@ -780,7 +817,10 @@ registerView('health', {
     return head + bridgeStrip() + `
     <div class="card card--pad mb-6">
       <div class="hrings">
-        ${ring(m.steps, g.steps, '#3ecf8e', 'Steps', m.steps != null ? `${Number(m.steps).toLocaleString()} of ${Number(g.steps).toLocaleString()}` : 'nothing yet today')}
+        ${ring(m.steps, g.steps, '#3ecf8e', 'Steps', m.steps != null
+          ? `${Number(m.steps).toLocaleString()} of ${Number(g.steps).toLocaleString()}${
+              m.src?.steps === 'apple' && m.srcAt?.steps ? ` · at ${clockOf(m.srcAt.steps)}` : ''}`
+          : 'nothing yet today')}
         ${ring(mins, goalMins, '#a78bfa', 'Sleep', mins != null ? `${fmtSleep(mins)} of ${g.sleep}h` : 'log last night')}
         ${ring(m.water, g.water, '#4cc4f0', 'Water', `${m.water || 0} of ${g.water} glasses`)}
         ${ring(move, 30, '#ffb45c', 'Move', move ? `${fmtMins(move)} active` : 'no movement logged')}
