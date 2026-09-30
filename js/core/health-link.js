@@ -19,7 +19,7 @@
    ═══════════════════════════════════════════════════════════════ */
 import { getSupabase, getSession, canUseSupabase } from './supabase.js';
 import { supabaseConfig } from '../config.js';
-import { today, addDaysISO, clamp, round } from './util.js';
+import { today, addDaysISO, clamp, round, clockMins, minutesBetween } from './util.js';
 
 export const KEY_TABLE = 'gabikos_health_keys';
 export const INBOX_TABLE = 'gabikos_health_inbox';
@@ -129,15 +129,6 @@ export function normalizeSample(raw = {}) {
 }
 
 /** Bed 23:10 → wake 06:42 crosses midnight; that is the normal case. */
-export function minutesBetween(bed, wake) {
-  const b = clockMins(bed), w = clockMins(wake);
-  if (b == null || w == null) return null;
-  return w >= b ? w - b : (1440 - b) + w;
-}
-export function clockMins(hhmm) {
-  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
-  return m ? (+m[1]) * 60 + (+m[2]) : null;
-}
 
 /* ═══ Route 1 — the link ══════════════════════════════════════
    #/health?ah=1&steps=8321&sleep=452&bed=23:10&wake=06:42       */

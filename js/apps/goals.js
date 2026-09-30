@@ -7,14 +7,8 @@ import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
 import { esc, uid, pct, fmtDate, diffDays, today, plural, clamp, by } from '../core/util.js';
 
-export const activeGoals = () => S().goals.filter(g => !g.archived);
-export const goalProgress = g => {
-  if (g.milestones?.length) {
-    const done = g.milestones.filter(m => m.done).length;
-    return pct(done, g.milestones.length);
-  }
-  return pct(Number(g.current) || 0, Number(g.target) || 100);
-};
+import { activeGoals, goalProgress } from '../core/data.js';
+export { activeGoals, goalProgress };
 
 const goalFields = (g = {}) => [
   { name: 'title', label: 'Goal', type: 'text', required: true, placeholder: 'e.g. Run a half marathon', value: g.title },
@@ -125,7 +119,7 @@ registerView('goals', {
 
         <footer class="goal__foot">
           <button class="btn btn--ghost btn--sm" data-addms="${g.id}">${icon('plus')}Milestone</button>
-          <span class="dim" style="font-size:11.5px">${ms.length ? `${ms.filter(m => m.done).length}/${ms.length} milestones` : 'tracking by number'}</span>
+          <span class="dim" style="font-size:0.71875rem">${ms.length ? `${ms.filter(m => m.done).length}/${ms.length} milestones` : 'tracking by number'}</span>
         </footer>
       </article>`;
     }).join('')}</div>`;

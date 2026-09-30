@@ -12,8 +12,37 @@ const afterRender = new Set();
  * @param {{title,icon,group,render,onMount,badge,hidden,order,desc,keywords}} def
  */
 export function registerView(id, def) {
+  const prev = views.get(id);
   views.set(id, { id, group: 'Workspace', order: 50, ...def });
+  // A screen that has just arrived replaces its own placeholder, so draw it.
+  if (prev?.lazy && current === id) render();
 }
+
+/**
+ * Register a screen by its description alone, and fetch the code that draws
+ * it the first time someone opens it.
+ *
+ * Everything the sidebar, the tab bar and the search need — name, icon,
+ * group, badge — is in `meta`, so a screen can be listed, counted and found
+ * without its module ever being downloaded. Thirteen of them used to arrive
+ * on every boot to show one.
+ */
+export function registerLazy(id, meta, loader) {
+  // A screen already here — boot may have fetched Health to read a Shortcut's
+  // link — must not be demoted to a placeholder it can never come back from,
+  // because its module is cached and will not register itself a second time.
+  if (views.get(id) && !views.get(id).lazy) return;
+  registerView(id, { ...meta, lazy: loader, render: () => SKELETON });
+}
+
+const SKELETON = `<div class="page-skeleton" aria-busy="true" aria-label="Loading">
+  <div class="skeleton" style="height:34px;width:190px"></div>
+  <div class="skeleton" style="height:15px;width:260px;margin-top:10px"></div>
+  <div class="skeleton" style="height:120px;margin-top:22px"></div>
+  <div class="skeleton" style="height:120px;margin-top:14px"></div>
+</div>`;
+
+const loading = new Set();
 export const unregisterView = id => views.delete(id);
 export const getView = id => views.get(id);
 export const allViews = () => [...views.values()];
@@ -45,6 +74,18 @@ export function render() {
   rendering = true;
   current = view.id;
   currentParams = p;
+
+  // A screen still on its way draws a placeholder; registerView redraws it.
+  if (view.lazy && !loading.has(view.id)) {
+    loading.add(view.id);
+    view.lazy()
+      .catch(err => {
+        console.error(`[GabikOS] could not load "${view.id}":`, err);
+        views.set(view.id, { ...views.get(view.id), lazy: null, render: () => OFFLINE });
+        render();
+      })
+      .finally(() => loading.delete(view.id));
+  }
 
   try {
     const html = view.render(p) ?? '';
@@ -83,3 +124,12 @@ export function startRouter() {
   window.addEventListener('hashchange', render);
   render();
 }
+
+const OFFLINE = `<div class="empty">
+  <div class="empty__icon"><svg viewBox="0 0 24 24" class="ic"><path d="M12 8.5v5M12 17h.01" stroke="currentColor"
+    stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor"
+    stroke-width="1.8" fill="none"/></svg></div>
+  <h3>This screen could not be downloaded</h3>
+  <p>You may be offline. Everything already on this device is safe — try again when you have a connection.</p>
+  <button class="btn mt-3" onclick="location.reload()">Try again</button>
+</div>`;

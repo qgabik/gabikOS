@@ -105,7 +105,7 @@ export function confirmDialog({ title = 'Are you sure?', message = '', confirmLa
     modal.open({
       title,
       size: 'slim',
-      body: `<p class="muted" style="font-size:13.6px;line-height:1.65">${esc(message)}</p>`,
+      body: `<p class="muted" style="font-size:0.85rem;line-height:1.65">${esc(message)}</p>`,
       footer: `
         <button class="btn" data-act="cancel">${esc(cancelLabel)}</button>
         <button class="btn ${danger ? 'btn--danger' : 'btn--primary'}" data-act="ok">${esc(confirmLabel)}</button>`,

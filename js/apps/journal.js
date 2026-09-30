@@ -9,16 +9,8 @@ import { esc, today, addDaysISO, fmtDate, by, avg, round, plural, diffDays, pars
 import { markdown, excerpt, wordCount } from '../core/markdown.js';
 import { lineChart, heatmap } from '../core/charts.js';
 
-export const MOODS = [
-  { value: 1, label: 'Rough',   emoji: '😔', color: '#ff6b6b' },
-  { value: 2, label: 'Low',     emoji: '😕', color: '#f5904f' },
-  { value: 3, label: 'Okay',    emoji: '😐', color: '#f5b544' },
-  { value: 4, label: 'Good',    emoji: '🙂', color: '#7cc98f' },
-  { value: 5, label: 'Great',   emoji: '😄', color: '#3ecf8e' },
-];
-export const moodOf = v => MOODS.find(m => m.value === Number(v)) || MOODS[2];
-export const entryFor = date => S().journal.find(e => e.date === date);
-export const hasEntryToday = () => !!entryFor(today());
+import { MOODS, moodOf, entryFor, hasEntryToday } from '../core/data.js';
+export { MOODS, moodOf, entryFor, hasEntryToday };
 
 const PROMPTS = [
   'What went well today?',
@@ -103,7 +95,7 @@ registerView('journal', {
           : '<div class="chart-empty">Write a few more entries to see the trend</div>'}</div></div>
       <div class="card"><div class="card__head">${icon('calendar')}<h3>Consistency</h3></div>
         <div class="card__body">${heatmap(cells, { cols: 13, title: 'journal entries, last 13 weeks' })}
-          <p class="dim mt-3" style="font-size:12px">Each square is a day. Colour follows your mood.</p></div></div>
+          <p class="dim mt-3" style="font-size:0.75rem">Each square is a day. Colour follows your mood.</p></div></div>
     </div>`;
 
     const list = `<div class="journal-list">${entries.slice(0, 40).map(e => {

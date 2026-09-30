@@ -9,65 +9,22 @@ import { store, S, settings } from '../core/store.js';
 import { registerView, navigate, render, params } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile, modal, qs } from '../core/ui.js';
-import { esc, uid, today, iso, parseISO, dayName, plural, by, colorFor, pickFile, truncate, fmtMins } from '../core/util.js';
-import { parseICS, toWeeklySlots, isoWeek } from '../core/ics.js';
+import { esc, uid, today, iso, parseISO, dayName, plural, by, colorFor, pickFile, truncate, fmtMins, isoWeek } from '../core/util.js';
+import { parseICS, toWeeklySlots } from '../core/ics.js';
 
-/* ─── Period times: the layout most Czech schools use ─── */
-export const DEFAULT_PERIODS = [
-  { n: 0,  start: '07:10', end: '07:55' }, { n: 1,  start: '08:00', end: '08:45' },
-  { n: 2,  start: '08:55', end: '09:40' }, { n: 3,  start: '09:50', end: '10:35' },
-  { n: 4,  start: '10:45', end: '11:30' }, { n: 5,  start: '11:40', end: '12:25' },
-  { n: 6,  start: '12:30', end: '13:15' }, { n: 7,  start: '13:20', end: '14:05' },
-  { n: 8,  start: '14:10', end: '14:55' }, { n: 9,  start: '15:00', end: '15:45' },
-  { n: 10, start: '15:50', end: '16:35' }, { n: 11, start: '16:50', end: '17:35' },
-  { n: 12, start: '17:40', end: '18:25' }, { n: 13, start: '18:30', end: '19:15' },
-];
-export const periods = () => settings().school?.periods?.length ? settings().school.periods : DEFAULT_PERIODS;
-export const schoolCfg = () => ({ weekMode: 'single', days: 5, ...(settings().school || {}) });
+import { DEFAULT_PERIODS, periods, schoolCfg, weekParity, parityLabel, subjects, lessons,
+         subjectOf, lessonsOn, todayLessons, currentAndNext, clockToMins as minutes } from '../core/data.js';
+
+/* The timetable's queries live in core/data.js, so the dashboard can name
+   your next lesson without loading this screen's editor. */
+export { DEFAULT_PERIODS, periods, schoolCfg, weekParity, parityLabel, subjects, lessons,
+         subjectOf, lessonsOn, todayLessons, currentAndNext };
 
 const DAYS = [
   { n: 1, cs: 'Pondělí', en: 'Monday' }, { n: 2, cs: 'Úterý', en: 'Tuesday' },
   { n: 3, cs: 'Středa', en: 'Wednesday' }, { n: 4, cs: 'Čtvrtek', en: 'Thursday' },
   { n: 5, cs: 'Pátek', en: 'Friday' }, { n: 6, cs: 'Sobota', en: 'Saturday' },
 ];
-
-/* ─── Week parity ─── */
-export const weekParity = (d = new Date()) => (isoWeek(d) % 2 ? 'a' : 'b');
-export const parityLabel = p => (p === 'a' ? 'Week A (odd)' : 'Week B (even)');
-
-/* ─── Queries ─── */
-export const subjects = () => S().subjects || [];
-export const lessons = () => S().lessons || [];
-export const subjectOf = id => subjects().find(s => s.id === id);
-
-const minutes = t => { const [h, m] = String(t || '0:0').split(':').map(Number); return h * 60 + m; };
-const nowMins = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-
-/** Lessons for a weekday, in period order, respecting week parity. */
-export function lessonsOn(day, parity = weekParity()) {
-  return lessons()
-    .filter(l => l.day === day && (l.week === 'all' || !l.week || l.week === parity))
-    .sort(by(l => Number(l.period)));
-}
-export const todayLessons = () => lessonsOn(new Date().getDay());
-
-/** What is on right now, and what is next. */
-export function currentAndNext() {
-  const list = todayLessons();
-  const now = nowMins();
-  const ps = periods();
-  const timed = list.map(l => {
-    const p = ps.find(x => Number(x.n) === Number(l.period));
-    if (!p) return null;
-    const span = Math.max(1, Number(l.span) || 1);
-    const idx = ps.findIndex(x => Number(x.n) === Number(p.n));
-    const last = ps[Math.min(idx + span - 1, ps.length - 1)] || p;
-    return { ...l, span, start: minutes(p.start), end: minutes(last.end), startStr: p.start, endStr: last.end };
-  }).filter(l => l && !isNaN(l.start));
-  const current = timed.find(l => now >= l.start && now < l.end) || null;
-  const next = timed.find(l => l.start > now) || null;
-  return { current, next, all: timed };
-}
 
 /**
  * A day as you actually live it: lessons, and the empty periods between
@@ -314,7 +271,7 @@ function previewImport(slots, source) {
   const odd = unmatchedTimes(slots);
   modal.open({
     title: 'Review before importing', size: 'wide',
-    body: `<p class="dim mb-4" style="font-size:13px">Found <strong>${plural(slots.length, 'lesson')}</strong>
+    body: `<p class="dim mb-4" style="font-size:0.8125rem">Found <strong>${plural(slots.length, 'lesson')}</strong>
       in ${esc(truncate(source, 40))}. Times are matched to your period numbers. Untick anything you do not want.</p>
       ${odd.length ? `<label class="check callout-inline">
         <input type="checkbox" data-adopt checked />
@@ -548,7 +505,7 @@ function rowsToSlots(rows) {
 /* ─── Periods editor ───────────────────────────────────────────── */
 async function editPeriods() {
   const draw = list => `
-    <p class="dim mb-4" style="font-size:13px">These are the times your school rings the bell. Everything
+    <p class="dim mb-4" style="font-size:0.8125rem">These are the times your school rings the bell. Everything
       else — the timetable, free time, what is on now — is worked out from them.</p>
     <div class="periodgrid">
       <div class="periodgrid__head"><span>Period</span><span>Starts</span><span>Ends</span><span></span></div>
@@ -811,7 +768,7 @@ function dayStripHtml(parity, cfg, p) {
       ${list.length ? `<div class="dayrows">${rows}</div>`
         : emptyState('coffee', 'Nothing on', `${DAYS.find(d => d.n === pick)?.cs} is free in ${parityLabel(parity).replace('Week ', 'week ')}.`)}
     </div>
-    <p class="dim tc mt-3" style="font-size:11.6px">Swipe left or right to change day</p>`;
+    <p class="dim tc mt-3" style="font-size:0.725rem">Swipe left or right to change day</p>`;
 }
 
 /** An empty stretch between two lessons. */
@@ -970,7 +927,7 @@ function todayHtml() {
                 ${l.teacher || sub?.teacher ? `· ${esc(l.teacher || sub.teacher)}` : ''}
                 ${l.note ? `· ${esc(l.note)}` : ''}</div>
             </div>
-            <span class="dim" style="font-size:11.5px">${l.period}.</span>
+            <span class="dim" style="font-size:0.71875rem">${l.period}.</span>
           </button>`;
         }).join('')}
       </div>
@@ -1013,7 +970,7 @@ async function editSubject(id) {
 function howToExport() {
   modal.open({
     title: 'Getting your timetable in', size: '',
-    body: `<div class="md" style="font-size:13.4px">
+    body: `<div class="md" style="font-size:0.8375rem">
       <p><strong>Photographing it is the quickest way</strong> — no export, no login, no hunting through
         menus. Take a clear, straight-on shot and it gets read for you.</p>
       <p>If you would rather have it exact, look for whichever of these your school offers:</p>

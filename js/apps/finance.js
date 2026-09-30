@@ -9,18 +9,8 @@ import { esc, today, iso, monthKey, monthName, parseISO, fmtMoney, sum, by, pct,
          addDaysISO, fmtDate, round, groupBy } from '../core/util.js';
 import { donut, legend, groupedBars, seriesColor } from '../core/charts.js';
 
-export const CATEGORIES = {
-  income:  ['Salary', 'Freelance', 'Gift', 'Refund', 'Investment', 'Other income'],
-  expense: ['Food', 'Groceries', 'Rent', 'Bills', 'Transport', 'Health', 'Shopping',
-            'Fun', 'Subscriptions', 'Travel', 'Education', 'Other'],
-};
-const cur = () => settings().currency || '€';
-export const money = v => fmtMoney(v, cur());
-
-export const txOfMonth = (mk = monthKey()) => S().transactions.filter(t => (t.date || '').startsWith(mk));
-export const monthIncome = mk => sum(txOfMonth(mk).filter(t => t.type === 'income').map(t => t.amount));
-export const monthExpense = mk => sum(txOfMonth(mk).filter(t => t.type === 'expense').map(t => t.amount));
-export const monthNet = mk => monthIncome(mk) - monthExpense(mk);
+import { CATEGORIES, money, currency as cur, txOfMonth, monthIncome, monthExpense, monthNet } from '../core/data.js';
+export { CATEGORIES, money, txOfMonth, monthIncome, monthExpense, monthNet };
 
 const txFields = (t = {}) => [
   { name: 'type', label: 'Type', type: 'select', half: true, value: t.type || 'expense',
@@ -187,7 +177,7 @@ registerView('finance', {
         <i class="pace__spent" style="width:${Math.min(spentPct, 100)}%"></i>
         ${budgetTotal ? `<i class="pace__mark" style="left:${elapsed}%" title="${elapsed}% of the month gone"></i>` : ''}
       </div>
-      <p class="dim mt-2" style="font-size:12px">${paceNote}</p>
+      <p class="dim mt-2" style="font-size:0.75rem">${paceNote}</p>
     </div>`;
 
     /* category breakdown */
@@ -254,7 +244,7 @@ registerView('finance', {
             <small class="dim">${money(spent)} of ${money(b.limit)}
               ${p >= 100 ? `· ${money(spent - b.limit)} over` : `· ${money(b.limit - spent)} left`}</small>
           </button>`;
-        }).join('')}</div>` : `<p class="dim" style="font-size:13px">No budgets set. A budget turns a number into a decision.</p>`}
+        }).join('')}</div>` : `<p class="dim" style="font-size:0.8125rem">No budgets set. A budget turns a number into a decision.</p>`}
       </div>
     </div>`;
 

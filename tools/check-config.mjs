@@ -51,6 +51,37 @@ try {
   check(Array.isArray(m.icons) && m.icons.length, 'manifest: no icons');
 } catch (err) { problems.push(`manifest.webmanifest is not valid JSON: ${err.message}`); }
 
+/* ─── index.html ───────────────────────────────────────────────
+   Zero build means nothing resolves these for us. A preload with a typo
+   is a wasted request; a stylesheet with one is a site without CSS. */
+const root = new URL('../', import.meta.url);
+const exists = rel => { try { readFileSync(new URL(rel, root)); return true; } catch { return false; } };
+
+let html = '';
+try { html = readFileSync(new URL('index.html', root), 'utf8'); }
+catch (err) { problems.push(`index.html could not be read: ${err.message}`); }
+
+for (const m of html.matchAll(/(?:href|src)="([^"#:]+\.(?:js|css|woff2|webmanifest|png))"/g))
+  check(exists(m[1]), `index.html points at ${m[1]}, which is not in the repository`);
+
+check(!/fonts\.(googleapis|gstatic)\.com/.test(html.replace(/<!--[\s\S]*?-->/g, '')),
+  'index.html asks another origin for a font — that is two handshakes before any text can be drawn, and fonts/ already has it');
+
+/* ─── the screens the router promises ─── */
+let views = '';
+try { views = readFileSync(new URL('js/core/views.js', root), 'utf8'); }
+catch (err) { problems.push(`js/core/views.js could not be read: ${err.message}`); }
+for (const m of views.matchAll(/import\('\.\.\/(apps\/[\w-]+\.js)'\)/g))
+  check(exists('js/' + m[1]), `views.js promises js/${m[1]}, which is not in the repository — that screen would 404 when opened`);
+
+/* ─── the offline boot set ─── */
+let sw = '';
+try { sw = readFileSync(new URL('sw.js', root), 'utf8'); }
+catch (err) { problems.push(`sw.js could not be read: ${err.message}`); }
+const bootList = sw.slice(sw.indexOf('const BOOT = ['), sw.indexOf('].map(at)'));
+for (const m of bootList.matchAll(/'([^']+\.(?:js|css|html|woff2|webmanifest))'/g))
+  check(exists(m[1]), `sw.js would precache ${m[1]}, which is not in the repository`);
+
 if (problems.length) {
   console.error('Deployment config problems:\n' + problems.map(p => '  ✗ ' + p).join('\n'));
   process.exit(1);

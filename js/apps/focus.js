@@ -174,11 +174,8 @@ export async function quickStart() {
 }
 
 /* ─── Stats ─── */
-export const focusToday = () => sum(S().focusSessions.filter(s => s.date === today()).map(s => s.minutes));
-export const focusWeek = () => {
-  const week = Array.from({ length: 7 }, (_, i) => addDaysISO(today(), -i));
-  return sum(S().focusSessions.filter(s => week.includes(s.date)).map(s => s.minutes));
-};
+import { focusToday, focusWeek } from '../core/data.js';
+export { focusToday, focusWeek };
 
 /* ─── View ─── */
 registerView('focus', {
@@ -276,9 +273,16 @@ registerView('focus', {
 });
 
 /* ─── HUD wiring (called once from main) ─── */
+/* The timer button in the top bar, which is wired before this module is
+   fetched: resume a running session, or start one. */
+export function openFocus() { timer.total ? navigate('focus') : quickStart(); }
+
 export function initFocusHud() {
   qs('#fhToggle')?.addEventListener('click', toggle);
   qs('#fhStop')?.addEventListener('click', () => stop());
-  qs('#focusBtn')?.addEventListener('click', () => (timer.total ? navigate('focus') : quickStart()));
   paintHud();
 }
+
+/* A timer can only start from this module, so the floating clock is wired
+   the moment the module arrives — there is nothing to show before that. */
+initFocusHud();

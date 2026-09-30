@@ -8,21 +8,8 @@ import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu }
 import { esc, iso, today, parseISO, addDays, addDaysISO, monthName, dayName, fmtDate,
          startOfWeek, diffDays, by, plural, isPast } from '../core/util.js';
 
-const CATS = [
-  { value: 'personal', label: 'Personal', color: '#7c5cff' },
-  { value: 'work', label: 'Work', color: '#4cc4f0' },
-  { value: 'health', label: 'Health', color: '#3ecf8e' },
-  { value: 'social', label: 'Social', color: '#f5b544' },
-  { value: 'travel', label: 'Travel', color: '#ec6ead' },
-  { value: 'other', label: 'Other', color: '#6b7286' },
-];
-export const catOf = v => CATS.find(c => c.value === v) || CATS[5];
-
-export const eventsOn = date => S().events.filter(e => e.date === date).sort(by('time'));
-export const upcoming = (n = 6) => S().events
-  .filter(e => diffDays(e.date, today()) >= 0)
-  .sort(by(e => e.date + (e.time || '')))
-  .slice(0, n);
+import { EVENT_CATS as CATS, catOf, eventsOn, upcoming } from '../core/data.js';
+export { catOf, eventsOn, upcoming };
 
 const eventFields = (e = {}) => [
   { name: 'title', label: 'Event', type: 'text', required: true, placeholder: 'e.g. Dinner with Anna', value: e.title },

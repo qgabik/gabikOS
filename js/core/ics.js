@@ -6,6 +6,8 @@
    spec, and half a timetable you can fix by hand beats a parse error.
    ═══════════════════════════════════════════════════════════════ */
 
+import { isoWeek } from './util.js';
+
 /** RFC 5545 line folding: a leading space or tab continues the line above. */
 function unfold(text) {
   return String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
@@ -149,12 +151,3 @@ function teacherFrom(e) {
 }
 
 /** ISO-8601 week number — Czech timetables alternate on this. */
-export function isoWeek(date) {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayNum = (d.getDay() + 6) % 7;            // Monday = 0
-  d.setDate(d.getDate() - dayNum + 3);            // nearest Thursday
-  const firstThursday = new Date(d.getFullYear(), 0, 4);
-  const firstDayNum = (firstThursday.getDay() + 6) % 7;
-  firstThursday.setDate(firstThursday.getDate() - firstDayNum + 3);
-  return 1 + Math.round((d - firstThursday) / (7 * 86400000));
-}

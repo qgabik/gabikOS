@@ -9,6 +9,7 @@ import { icon, PICKABLE } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile, modal, qs } from '../core/ui.js';
 import { esc, uid, today, fmtDate, fmtMoney, by, sum, avg, round, plural, truncate, slug, download } from '../core/util.js';
 import { barChart, donut, legend } from '../core/charts.js';
+import { useBuilderRegistrar } from '../core/views.js';
 
 /* ─── Field types ─── */
 export const FIELD_TYPES = [
@@ -124,7 +125,7 @@ export async function editFields(cid) {
   if (!c) return;
 
   const draw = () => `
-    <p class="dim mb-4" style="font-size:13px">Fields are the columns of your tracker. Drag to reorder is not needed — use the arrows.</p>
+    <p class="dim mb-4" style="font-size:0.8125rem">Fields are the columns of your tracker. Drag to reorder is not needed — use the arrows.</p>
     <div class="fieldlist" data-fieldlist>
       ${c.fields.map((f, i) => `
         <div class="fieldrow" data-fid="${f.id}">
@@ -284,15 +285,18 @@ function cell(f, value) {
   }
 }
 
-/* ─── Dynamic view registration ─── */
+/* ─── Dynamic view registration ───────────────────────────────
+   Your own trackers are listed in the nav from a cold boot by core/views.js,
+   from the collections themselves. Once this module is here it takes over and
+   registers the real screens. */
 export function registerCollections() {
-  // drop views for collections that no longer exist
   const live = new Set(S().collections.map(c => collectionViewId(c)));
   for (const c of S().collections) buildCollectionView(c);
   window.__gabikCollectionViews ??= new Set();
   for (const id of window.__gabikCollectionViews) if (!live.has(id)) unregisterView(id);
   window.__gabikCollectionViews = live;
 }
+useBuilderRegistrar(registerCollections);
 
 function buildCollectionView(c) {
   registerView(collectionViewId(c), {
@@ -522,7 +526,7 @@ registerView('builder', {
 
     const templates = `
       <h2 class="section-title">${icon('sparkles')}Start from a template</h2>
-      <p class="dim mb-4" style="font-size:13px">Every template is fully editable once created — rename it, add fields, change the icon.</p>
+      <p class="dim mb-4" style="font-size:0.8125rem">Every template is fully editable once created — rename it, add fields, change the icon.</p>
       <div class="grid grid--3">${TEMPLATES.map((t, i) => `
         <button class="card card--pad card--hover tmplcard" data-tmpl="${i}" style="--cc:${t.color}">
           <span class="tmplcard__ic">${icon(t.icon, 'ic ic--lg')}</span>
@@ -539,7 +543,7 @@ registerView('builder', {
           <span class="stat__icon">${icon('lightbulb')}</span>
           <div>
             <h3>This is where GabikOS becomes yours</h3>
-            <p class="dim mt-2" style="font-size:13.4px">Tasks, habits and notes cover the basics. But your life has
+            <p class="dim mt-2" style="font-size:0.8375rem">Tasks, habits and notes cover the basics. But your life has
             things nobody else tracks — your plants, your gear, your clients, the coffees you want to try.
             Build a tracker for those here and it gets its own place in the sidebar, with a table, cards,
             search, stats and CSV export.</p>

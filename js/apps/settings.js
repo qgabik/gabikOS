@@ -8,7 +8,7 @@ import { openForm, confirmDialog, toast, on, pageHead, statTile, qs, qsa } from 
 import { esc, download, pickFile, plural, initials, fmtDate, today, cap, relTime } from '../core/util.js';
 import { applyTheme, setTheme, ACCENTS, THEMES, themeById } from '../core/theme.js';
 import { sync, syncNow, syncLabel, onSyncChange } from '../core/sync.js';
-import { accountCard, wireAccount, openAuth } from './account.js';
+import { accountCard } from './account.js';
 import { BUILD } from '../config.js';
 
 export const SHORTCUTS = [
@@ -67,7 +67,7 @@ registerView('settings', {
         <div class="card"><div class="card__head">${icon('user')}<h3>Who you are</h3></div>
           <div class="card__body col gap-4">
             <div class="row gap-4">
-              <span class="avatar" style="width:54px;height:54px;font-size:20px">${esc(initials(pr.name))}</span>
+              <span class="avatar" style="width:54px;height:54px;font-size:1.25rem">${esc(initials(pr.name))}</span>
               <div class="grow">
                 <div class="field"><label class="field__label">Name</label>
                   <input class="input" data-set="profile.name" value="${esc(pr.name || '')}"
@@ -104,7 +104,7 @@ registerView('settings', {
       body = `<div class="card mb-4"><div class="card__head">${icon('palette')}<h3>Theme</h3>
         <span class="chip">${esc(THEMES.length)} palettes</span></div>
         <div class="card__body">
-          <p class="dim mb-4" style="font-size:13px">Every palette is tuned for long sessions — no pure black,
+          <p class="dim mb-4" style="font-size:0.8125rem">Every palette is tuned for long sessions — no pure black,
             no pure white, and body text held at about 11:1 instead of the glare of maximum contrast.</p>
           <div class="theme-gallery">
             ${THEMES.map(t => `
@@ -137,7 +137,7 @@ registerView('settings', {
           <div class="row gap-3 mt-4 row--wrap">
             <label class="field__label">Custom</label>
             <input type="color" class="input" style="width:70px" value="${esc(s.accent)}" data-accent-custom />
-            <span class="dim" style="font-size:12.5px">Any colour you pick is darkened or lightened
+            <span class="dim" style="font-size:0.78125rem">Any colour you pick is darkened or lightened
               automatically until it stays readable on the palette you chose.</span>
           </div>
           <hr class="divider" />
@@ -155,7 +155,7 @@ registerView('settings', {
           <div>
             <div class="row row--between mb-2">
               <label class="field__label">Text size</label>
-              <strong class="mono" style="font-size:13px">${Math.round((s.textScale || 1) * 100)}%</strong>
+              <strong class="mono" style="font-size:0.8125rem">${Math.round((s.textScale || 1) * 100)}%</strong>
             </div>
             <input type="range" class="range" min="0.85" max="1.3" step="0.05"
               value="${s.textScale || 1}" data-scale />
@@ -173,7 +173,7 @@ registerView('settings', {
       <div class="card mt-4"><div class="card__head">${icon('grid')}<h3>Bar at the bottom</h3>
         <span class="chip">${esc(String(barTabs().length))} of 4</span></div>
         <div class="card__body">
-          <p class="dim mb-4" style="font-size:13px">The four shortcuts along the bottom of a phone
+          <p class="dim mb-4" style="font-size:0.8125rem">The four shortcuts along the bottom of a phone
             screen. Pick the ones you open every day — everything else stays one tap away under
             <strong>More</strong>.</p>
           <div class="tabpick">
@@ -187,7 +187,7 @@ registerView('settings', {
           </div>
           <div class="row gap-2 mt-4 row--wrap">
             <button class="btn btn--sm btn--ghost" data-tabs-reset>${icon('refresh')}Back to the default</button>
-            <span class="dim" style="font-size:12px">Now: ${esc(barTabs().map(id =>
+            <span class="dim" style="font-size:0.75rem">Now: ${esc(barTabs().map(id =>
               navViews().find(v => v.id === id)?.title || id).join(' · '))}</span>
           </div>
         </div></div>`;
@@ -197,7 +197,7 @@ registerView('settings', {
       const g = s.goals;
       body = `<div class="card"><div class="card__head">${icon('target')}<h3>Daily targets</h3></div>
         <div class="card__body">
-          <p class="dim mb-4" style="font-size:13px">These drive the rings and progress bars on your dashboard.</p>
+          <p class="dim mb-4" style="font-size:0.8125rem">These drive the rings and progress bars on your dashboard.</p>
           <div class="form-grid form-grid--2">
             ${[['water', 'Water (glasses)', 1, 30, 'droplet'], ['steps', 'Steps', 500, 50000, 'footprints'],
                ['sleep', 'Sleep (hours)', 4, 12, 'bed'], ['focusMins', 'Focus (minutes)', 15, 720, 'timer']].map(([k, l, min, max, ic]) => `
@@ -211,7 +211,7 @@ registerView('settings', {
       const po = s.pomodoro;
       body = `<div class="card"><div class="card__head">${icon('timer')}<h3>Pomodoro intervals</h3></div>
         <div class="card__body">
-          <p class="dim mb-4" style="font-size:13px">The classic is 25 / 5 / 15 with a long break every 4 rounds. Tune it to your attention span.</p>
+          <p class="dim mb-4" style="font-size:0.8125rem">The classic is 25 / 5 / 15 with a long break every 4 rounds. Tune it to your attention span.</p>
           <div class="form-grid form-grid--2">
             ${[['focus', 'Focus session (min)', 5, 120], ['short', 'Short break (min)', 1, 30],
                ['long', 'Long break (min)', 5, 60], ['rounds', 'Rounds before long break', 2, 10]].map(([k, l, min, max]) => `
@@ -232,7 +232,7 @@ registerView('settings', {
               <h3>${sync.enabled ? 'Synced across your devices' : 'Saved on this device'}</h3>
               <span class="chip ${sl.tone ? 'chip--' + sl.tone : ''}" data-sync-chip>${esc(sl.text)}</span>
             </div>
-            <p class="dim mt-2" style="font-size:13.2px">
+            <p class="dim mt-2" style="font-size:0.825rem">
               ${sync.enabled
                 ? `Your data is kept in private storage tied to your account, so what you write on your phone
                    is here on your computer and the other way round. It stays private to you — nobody else
@@ -242,7 +242,7 @@ registerView('settings', {
                    private — and it also means clearing your browser data deletes it, and a second device starts
                    empty. <strong>Export a backup regularly</strong>, or use the claude.ai copy, which syncs.`}
             </p>
-            ${sync.detail ? `<p class="dim mt-2" style="font-size:12px">${esc(sync.detail)}</p>` : ''}
+            ${sync.detail ? `<p class="dim mt-2" style="font-size:0.75rem">${esc(sync.detail)}</p>` : ''}
             ${sync.enabled ? `<button class="btn btn--sm mt-3" data-sync-now>${icon('refresh')}Sync now</button>` : ''}
           </div>
         </div>
@@ -258,14 +258,14 @@ registerView('settings', {
       <div class="grid grid--2">
         <div class="card"><div class="card__head">${icon('download')}<h3>Backup</h3></div>
           <div class="card__body col gap-3">
-            <p class="dim" style="font-size:13px">One JSON file with everything: tasks, notes, habits, history, custom trackers and settings.</p>
+            <p class="dim" style="font-size:0.8125rem">One JSON file with everything: tasks, notes, habits, history, custom trackers and settings.</p>
             <button class="btn btn--primary" data-export>${icon('download')}Export everything</button>
             <button class="btn" data-export-md>${icon('note')}Export notes as Markdown</button>
           </div></div>
 
         <div class="card"><div class="card__head">${icon('upload')}<h3>Restore</h3></div>
           <div class="card__body col gap-3">
-            <p class="dim" style="font-size:13px">Load a backup file. Replace wipes what is here; merge keeps both.</p>
+            <p class="dim" style="font-size:0.8125rem">Load a backup file. Replace wipes what is here; merge keeps both.</p>
             <button class="btn" data-import="replace">${icon('upload')}Import and replace</button>
             <button class="btn" data-import="merge">${icon('layers')}Import and merge</button>
           </div></div>
@@ -274,14 +274,14 @@ registerView('settings', {
       <div class="card mt-4"><div class="card__head">${icon('alert')}<h3>Danger zone</h3></div>
         <div class="card__body col gap-3">
           <div class="row row--between row--wrap gap-3">
-            <div><strong style="font-size:13.6px">Load starter content</strong>
-              <p class="dim" style="font-size:12.5px">Adds example habits, tasks and a welcome note.</p></div>
+            <div><strong style="font-size:0.85rem">Load starter content</strong>
+              <p class="dim" style="font-size:0.78125rem">Adds example habits, tasks and a welcome note.</p></div>
             <button class="btn btn--sm" data-seed>Load starter content</button>
           </div>
           <hr class="divider" style="margin:4px 0" />
           <div class="row row--between row--wrap gap-3">
-            <div><strong style="font-size:13.6px;color:var(--bad)">Erase everything</strong>
-              <p class="dim" style="font-size:12.5px">Deletes all your data on this device. There is no undo.</p></div>
+            <div><strong style="font-size:0.85rem;color:var(--bad)">Erase everything</strong>
+              <p class="dim" style="font-size:0.78125rem">Deletes all your data on this device. There is no undo.</p></div>
             <button class="btn btn--danger btn--sm" data-reset>Erase all data</button>
           </div>
         </div></div>`;
@@ -303,7 +303,7 @@ registerView('settings', {
           <button class="btn" data-shortcuts>${icon('keyboard')}Keyboard shortcuts</button>
           <button class="btn" data-go-builder>${icon('layers')}Open the Builder</button>
         </div>
-        <p class="dim mt-6" style="font-size:12px">Build ${esc(BUILD)} · ${plural(allViews().length, 'module')} loaded</p>
+        <p class="dim mt-6" style="font-size:0.75rem">Build ${esc(BUILD)} · ${plural(allViews().length, 'module')} loaded</p>
       </div>`;
     }
 
@@ -363,7 +363,6 @@ registerView('settings', {
       const out = root.querySelector('[data-scale]')?.previousElementSibling?.querySelector('strong');
       if (out) out.textContent = Math.round(Number(e.target.value) * 100) + '%';
     });
-    wireAccount(root);
     on(root, 'click', '[data-accent]', (e, el) => {
       store.setSetting('accent', el.dataset.accent);
       applyTheme();

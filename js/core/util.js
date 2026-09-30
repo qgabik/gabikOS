@@ -48,6 +48,30 @@ export function startOfMonth(d = new Date()) { const x = new Date(d); x.setDate(
 export function endOfMonth(d = new Date()) { const x = new Date(d); x.setMonth(x.getMonth()+1, 0); x.setHours(23,59,59,999); return x; }
 export const monthKey = (d = new Date()) => iso(d).slice(0, 7);
 
+/** ISO-8601 week number — Monday-based, the week containing the year's first Thursday. */
+export function isoWeek(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayNum = (d.getDay() + 6) % 7;            // Monday = 0
+  d.setDate(d.getDate() - dayNum + 3);            // nearest Thursday
+  const firstThursday = new Date(d.getFullYear(), 0, 4);
+  const firstDayNum = (firstThursday.getDay() + 6) % 7;
+  firstThursday.setDate(firstThursday.getDate() - firstDayNum + 3);
+  return 1 + Math.round((d - firstThursday) / (7 * 86400000));
+}
+
+/** "23:10" → 1390. Anything else → null. */
+export function clockMins(hhmm) {
+  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+  return m ? (+m[1]) * 60 + (+m[2]) : null;
+}
+
+/** Minutes from one wall clock time to another, crossing midnight if it must. */
+export function minutesBetween(bed, wake) {
+  const b = clockMins(bed), w = clockMins(wake);
+  if (b == null || w == null) return null;
+  return w >= b ? w - b : (1440 - b) + w;
+}
+
 const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 export const dayName = (d, short) => { const n = DAY_NAMES[(typeof d==='string'?parseISO(d):d).getDay()]; return short ? n.slice(0,3) : n; };

@@ -11,10 +11,15 @@ import { registerView, navigate, render, refreshIf } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, statTile, modal } from '../core/ui.js';
 import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, clamp,
-         plural, dayName, parseISO, download, pickFile, relTime } from '../core/util.js';
+         plural, dayName, parseISO, download, pickFile, relTime, clockMins, minutesBetween } from '../core/util.js';
 import { lineChart, barChart } from '../core/charts.js';
+import { metricFor, setMetric, sleepMinsOf, stepsReadAt, waterToday, addWater, derive } from '../core/data.js';
+
+/* These read and write the day's metrics; they live in core/data.js so the
+   dashboard's Water tile does not have to load this whole screen. */
+export { metricFor, setMetric, sleepMinsOf, stepsReadAt, waterToday, addWater };
 import { BUILD } from '../config.js';
-import { readLink, stripLink, normalizeSample, minutesBetween, clockMins,
+import { readLink, stripLink, normalizeSample,
          healthKey, pullInbox, cloudReady, cloudRecipe, linkTemplate,
          parseAppleExport, parsePasted, diagnose, simpleLink, cloudPing, clearInbox } from '../core/health-link.js';
 
@@ -55,9 +60,6 @@ const inStandalone = () => window.navigator.standalone === true ||
    replacing rather than explaining. */
 const STALE_AFTER = 5 * 60 * 1000;
 const READING_GUARD = 'gabikos:ah-autorun';
-
-export const stepsReadAt = (m = metricFor()) =>
-  (m?.src?.steps === 'apple' && m?.srcAt?.steps) ? m.srcAt.steps : 0;
 
 /**
  * Ask the phone for a fresh count when this screen opens.
@@ -107,35 +109,6 @@ function watchShortcutJump({ auto = false } = {}) {
 }
 
 /* ─── Daily metrics ─── */
-export const metricFor = (date = today()) => S().metrics.find(m => m.date === date);
-
-/** Sleep is kept in minutes; the old `sleep` hours field still reads. */
-export function sleepMinsOf(m) {
-  if (!m) return null;
-  if (m.sleepMins != null) return m.sleepMins;
-  if (m.bedtime && m.wake) return minutesBetween(m.bedtime, m.wake);
-  if (m.sleep != null) return Math.round(m.sleep * 60);
-  return null;
-}
-
-/** Keep the derived fields honest whatever route wrote the patch. */
-function derive(next) {
-  if (next.bedtime && next.wake && next.sleepMins == null) next.sleepMins = minutesBetween(next.bedtime, next.wake);
-  if (next.sleepMins != null) next.sleep = round(next.sleepMins / 60, 2);
-  else if (next.sleep != null && next.sleepMins == null) next.sleepMins = Math.round(next.sleep * 60);
-  return next;
-}
-
-export function setMetric(patch, date = today()) {
-  const existing = metricFor(date);
-  if (existing) {
-    const merged = derive({ ...existing, ...patch });
-    store.update('metrics', existing.id, merged);
-  } else {
-    store.add('metrics', derive({ date, ...patch }));
-  }
-}
-
 /** Mark the fields in a patch as typed by hand, so the phone leaves them be. */
 function setManual(patch, date = today()) {
   const cur = metricFor(date) || {};
@@ -148,15 +121,6 @@ function setManual(patch, date = today()) {
     srcAt[k] = now;
   }
   setMetric({ ...patch, src, srcAt }, date);
-}
-
-export const waterToday = () => metricFor()?.water || 0;
-export function addWater(n = 1) {
-  const goal = settings().goals.water || 8;
-  const next = clamp(waterToday() + n, 0, 30);
-  setMetric({ water: next });
-  if (next === goal) toast('Water goal reached 💧', 'ok');
-  render();
 }
 
 /* ═══ Apple Health ingest ═════════════════════════════════════ */
@@ -389,7 +353,7 @@ const ring = (value, goal, color, label, sub) => {
         <circle class="ring__fg" cx="40" cy="40" r="34" stroke-width="8" style="stroke:${esc(color)}"
           stroke-dasharray="${round(c, 1)}" stroke-dashoffset="${round(c - (c * p) / 100, 1)}"/>
       </svg>
-      <div class="ring__txt" style="font-size:13px">${p}<small style="font-size:9px">%</small></div>
+      <div class="ring__txt" style="font-size:0.8125rem">${p}<small style="font-size:0.5625rem">%</small></div>
     </div>
     <div class="hring__meta">
       <strong>${label}</strong>
@@ -411,8 +375,8 @@ function bridgeStrip() {
     <div class="row gap-3 row--wrap">
       <span class="stat__icon">${icon(h.linked ? 'heart' : 'link')}</span>
       <div class="grow" style="min-width:190px">
-        <h3 style="font-size:14px">${h.linked ? 'Apple Health is linked' : 'Bring in Apple Health'}</h3>
-        <p class="dim mt-1" style="font-size:12.5px">
+        <h3 style="font-size:0.875rem">${h.linked ? 'Apple Health is linked' : 'Bring in Apple Health'}</h3>
+        <p class="dim mt-1" style="font-size:0.78125rem">
           ${h.linked
             ? (auto
                 ? (readAt
@@ -443,10 +407,10 @@ const copyable = (id, label, value, note = '') => `
   <div class="ah__field">
     ${label ? `<label>${esc(label)}</label>` : ''}
     <div class="row gap-2">
-      <input class="input mono" id="${id}" readonly value="${esc(value)}" style="font-size:12px">
+      <input class="input mono" id="${id}" readonly value="${esc(value)}" style="font-size:0.75rem">
       <button class="btn btn--sm" data-copy="${id}">${icon('copy')}</button>
     </div>
-    ${note ? `<p class="dim mt-1" style="font-size:11.5px">${note}</p>` : ''}
+    ${note ? `<p class="dim mt-1" style="font-size:0.71875rem">${note}</p>` : ''}
   </div>`;
 
 async function openBridge(tab = 'link') {
@@ -459,7 +423,7 @@ async function openBridge(tab = 'link') {
   const body = `
   <div class="ah">
     <div class="callout mb-4">
-      <p style="font-size:13px;line-height:1.65">
+      <p style="font-size:0.8125rem;line-height:1.65">
         The Health app will not let a website read it — Apple allows that only to apps from the
         App Store. So your iPhone sends the numbers <em>out</em> instead, using
         <strong>Shortcuts</strong>, which is already on your phone. Pick a way below.
@@ -508,16 +472,16 @@ async function openBridge(tab = 'link') {
               placeholder="Steps to GabikOS" aria-label="Shortcut name">
             <button class="btn btn--sm" data-ah-name>${icon('check')}Save</button>
           </div>
-          <p class="dim mt-1" style="font-size:11.5px">Type it exactly as it appears in Shortcuts.
+          <p class="dim mt-1" style="font-size:0.71875rem">Type it exactly as it appears in Shortcuts.
             This is what the <strong>Update now</strong> button runs.</p>
         </div>
 
         ${inStandalone() || hs().shortcutBlocked ? `
         <div class="callout callout--warn mt-3" style="padding:12px 14px">
-          <p style="font-size:13px;line-height:1.6"><strong>On your home screen, GabikOS cannot open
+          <p style="font-size:0.8125rem;line-height:1.6"><strong>On your home screen, GabikOS cannot open
             Shortcuts.</strong> iOS does not allow an app added to the home screen to launch another
             one, so <em>Update now</em> is ignored with no error. Two things do work:</p>
-          <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.7">
+          <ul style="margin:8px 0 0;padding-left:18px;font-size:0.8125rem;line-height:1.7">
             <li>Make several <strong>Time of Day</strong> automations — 08:00, 13:00, 18:00, 22:00 —
               so the count keeps up on its own.</li>
             <li>Open <strong>gabik-os.vercel.app in Safari</strong> rather than from the home screen;
@@ -576,7 +540,7 @@ p_steps  Number   (the Statistic variable)</pre>
         </div>` : ''}
       ` : `
         <div class="callout callout--warn mb-3">
-          <p style="font-size:13px">This way needs two things first: a GabikOS account
+          <p style="font-size:0.8125rem">This way needs two things first: a GabikOS account
             (<strong>Settings → Data → Sign in</strong>), and the file
             <code>supabase/health-inbox.sql</code> run once in Supabase. The
             <strong>Easy way</strong> tab needs neither.</p>
@@ -677,7 +641,7 @@ function wireBridge(root) {
   on(root, 'click', '[data-ah-diagnose]', async (e, el) => {
     const out = root.querySelector('#ahResult');
     el.disabled = true;
-    out.innerHTML = `<p class="dim mt-3" style="font-size:13px">Checking…</p>`;
+    out.innerHTML = `<p class="dim mt-3" style="font-size:0.8125rem">Checking…</p>`;
     let steps = [];
     try { steps = await diagnose(); }
     catch (err) { steps = [{ label: 'The check itself failed', ok: false, detail: String(err?.message || err) }]; }
@@ -690,8 +654,8 @@ function wireBridge(root) {
           ${x.detail ? `<small>${esc(x.detail)}</small>` : ''}</div></li>`).join('')}
       </ul>
       ${bad?.fix ? `<div class="callout callout--warn mt-3" style="padding:12px 14px">
-        <p style="font-size:13px"><strong>Do this next:</strong> ${bad.fix}</p></div>`
-        : `<p class="dim mt-3" style="font-size:13px">Everything checks out.</p>`}`;
+        <p style="font-size:0.8125rem"><strong>Do this next:</strong> ${bad.fix}</p></div>`
+        : `<p class="dim mt-3" style="font-size:0.8125rem">Everything checks out.</p>`}`;
     el.disabled = false;
   });
 
@@ -793,7 +757,7 @@ registerView('health', {
       <div class="card card--pad mb-6 night">
         <div class="row row--between row--wrap gap-4">
           <div>
-            <div class="dim" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase">Last night</div>
+            <div class="dim" style="font-size:0.75rem;letter-spacing:.06em;text-transform:uppercase">Last night</div>
             <div class="night__big">${mins != null ? fmtSleep(mins) : 'not logged yet'}</div>
             <div class="night__times">
               <span>${icon('moon', 'ic ic--sm')} ${clockLabel(m.bedtime)}</span>
@@ -810,10 +774,10 @@ registerView('health', {
           </div>
         </div>
         ${mins != null ? `<div class="bar mt-4"><i style="width:${pct(mins, goalMins)}%;background:#a78bfa"></i></div>
-          <p class="dim mt-2" style="font-size:12px">${mins >= goalMins
+          <p class="dim mt-2" style="font-size:0.75rem">${mins >= goalMins
             ? `${fmtSleep(mins - goalMins)} over your ${g.sleep}h goal — that is the good kind of debt.`
             : `${fmtSleep(goalMins - mins)} short of your ${g.sleep}h goal.`}</p>` : `
-          <p class="dim mt-3" style="font-size:12.5px">Tap <strong>Going to bed</strong> tonight and
+          <p class="dim mt-3" style="font-size:0.78125rem">Tap <strong>Going to bed</strong> tonight and
             <strong>Just woke up</strong> in the morning — GabikOS works out the rest.</p>`}
       </div>
 
@@ -954,7 +918,7 @@ registerView('health', {
             <button class="btn btn--sm" data-water="1">${icon('plus')}Glass</button>
             <button class="btn btn--sm btn--ghost" data-water="-1">${icon('x')}Undo</button>
             <div class="grow"></div>
-            <span class="dim" style="font-size:12px">${pct(m.water || 0, g.water)}% of your daily goal</span>
+            <span class="dim" style="font-size:0.75rem">${pct(m.water || 0, g.water)}% of your daily goal</span>
           </div>
         </div></div>
     </div>

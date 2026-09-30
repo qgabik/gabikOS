@@ -7,130 +7,14 @@ import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
 import { esc, today, iso, addDaysISO, diffDays, pct, clamp, plural, dayName, parseISO, round, uid } from '../core/util.js';
 import { heatmap } from '../core/charts.js';
-import { metricFor, setMetric } from './health.js';
+import { METRIC_LINKS, logFor, isScheduled, setLog, adoptHistory, bumpHabit,
+         streak, bestStreak, rate, doneToday, dueTodayHabits, cellsFor,
+         linkKnownHabits } from '../core/data.js';
 
-/* ─── Habits that are really a number Health already keeps ───
-   "Drink water" and the Water tile were two stores counting the same
-   glasses, so 8/8 on one and 7/8 on the other were both correct. A linked
-   habit does not hold its own tally at all — it reads and writes the
-   metric, so there is one number and nothing to keep in step. */
-export const METRIC_LINKS = [
-  { value: '', label: 'Keep its own count' },
-  { value: 'water', label: 'Water — the glasses in Health' },
-  { value: 'steps', label: 'Steps — the count in Health' },
-  { value: 'sleep', label: 'Sleep — the hours in Health' },
-];
-const linkOf = habitId => store.find('habits', habitId)?.linkedMetric || '';
-
-/* ─── Log access ─── */
-export const logFor = (habitId, date) => {
-  const key = linkOf(habitId);
-  if (key) return Number(metricFor(date)?.[key]) || 0;
-  return S().habitLog?.[habitId]?.[date] || 0;
-};
-export const isScheduled = (habit, date) =>
-  !habit.schedule?.length || habit.schedule.includes(parseISO(date).getDay());
-
-export function setLog(habitId, date, value) {
-  const key = linkOf(habitId);
-  if (key) { setMetric({ [key]: value > 0 ? value : null }, date); return; }
-  store.commit(s => {
-    s.habitLog[habitId] ??= {};
-    if (value > 0) s.habitLog[habitId][date] = value;
-    else delete s.habitLog[habitId][date];
-  }, { key: 'habitLog' });
-}
-
-/**
- * Linking a habit that already has months behind it would make that history
- * disappear, because the habit stops reading its own log. Move it across
- * first, in one write, and never over a figure Health already holds.
- */
-export function adoptHistory(habitId, key) {
-  const log = S().habitLog?.[habitId] || {};
-  const dates = Object.keys(log);
-  if (!dates.length || !key) return 0;
-  let moved = 0;
-  store.commit(st => {
-    for (const d of dates) {
-      const m = st.metrics.find(x => x.date === d);
-      if (m) { if (m[key] == null) { m[key] = log[d]; moved++; } }
-      else { st.metrics.unshift({ id: uid('met'), date: d, [key]: log[d], createdAt: Date.now() }); moved++; }
-    }
-  }, { key: 'metrics' });
-  return moved;
-}
-
-export function bumpHabit(habitId, date = today(), delta = 1) {
-  const hab = store.find('habits', habitId);
-  if (!hab) return;
-  const target = Number(hab.target) || 1;
-  const cur = logFor(habitId, date);
-  // tapping a single-step habit toggles it; multi-step habits increment then wrap
-  const next = target <= 1
-    ? (cur ? 0 : 1)
-    : clamp(cur + delta, 0, target);
-  setLog(habitId, date, next);
-  if (next >= target && cur < target) {
-    const st = streak(habitId);
-    toast(st > 1 ? `${esc(hab.name)} done — ${st} day streak 🔥` : `${esc(hab.name)} done`, 'ok');
-    store.log('flame', `${hab.name} completed`, 'habits');
-  }
-  render();
-}
-
-/** Current consecutive streak of completed scheduled days, ending today/yesterday. */
-export function streak(habitId) {
-  const hab = store.find('habits', habitId);
-  if (!hab) return 0;
-  const target = Number(hab.target) || 1;
-  let n = 0, d = today();
-  // today not yet done doesn't break a streak that was alive yesterday
-  if (logFor(habitId, d) < target) d = addDaysISO(d, -1);
-  for (let guard = 0; guard < 1500; guard++) {
-    if (!isScheduled(hab, d)) { d = addDaysISO(d, -1); continue; }
-    if (logFor(habitId, d) >= target) { n++; d = addDaysISO(d, -1); }
-    else break;
-  }
-  return n;
-}
-
-export function bestStreak(habitId) {
-  const hab = store.find('habits', habitId);
-  const log = S().habitLog?.[habitId] || {};
-  const dates = Object.keys(log).sort();
-  if (!dates.length) return 0;
-  const target = Number(hab?.target) || 1;
-  let best = 0, run = 0, cursor = dates[0];
-  const end = today();
-  for (let guard = 0; guard < 4000 && diffDays(cursor, end) <= 0; guard++) {
-    if (isScheduled(hab, cursor)) {
-      if ((log[cursor] || 0) >= target) { run++; best = Math.max(best, run); }
-      else run = 0;
-    }
-    cursor = addDaysISO(cursor, 1);
-  }
-  return best;
-}
-
-/** Completion rate over the last n scheduled days. */
-export function rate(habitId, days = 30) {
-  const hab = store.find('habits', habitId);
-  if (!hab) return 0;
-  const target = Number(hab.target) || 1;
-  let done = 0, total = 0;
-  for (let i = 0; i < days; i++) {
-    const d = addDaysISO(today(), -i);
-    if (!isScheduled(hab, d)) continue;
-    total++;
-    if (logFor(habitId, d) >= target) done++;
-  }
-  return pct(done, total);
-}
-
-export const doneToday = () =>
-  S().habits.filter(h => isScheduled(h, today()) && logFor(h.id, today()) >= (Number(h.target) || 1));
-export const dueTodayHabits = () => S().habits.filter(h => isScheduled(h, today()));
+/* The figures live in core/data.js so the dashboard can read a streak
+   without loading this screen. Re-exported so every old import still works. */
+export { METRIC_LINKS, logFor, isScheduled, setLog, adoptHistory, bumpHabit,
+         streak, bestStreak, rate, doneToday, dueTodayHabits, linkKnownHabits };
 
 /* ─── Forms ─── */
 const DAYS = [{ value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
@@ -178,34 +62,6 @@ async function editHabit(id) {
  * carrying the habit's own history across. Writing linkedMetric on every
  * habit — '' for the rest — is what stops this running a second time.
  */
-export function linkKnownHabits() {
-  const pending = S().habits.filter(h => h.linkedMetric === undefined);
-  if (!pending.length) return 0;
-  let linked = 0;
-  for (const h of pending) {
-    const water = /water/i.test(h.name || '') || /glass/i.test(h.unit || '');
-    const key = water ? 'water' : '';
-    if (key) { adoptHistory(h.id, key); linked++; }
-    store.update('habits', h.id, { linkedMetric: key }, { silentHistory: true });
-  }
-  return linked;
-}
-
-/* ─── Heatmap cells ─── */
-function cellsFor(habitId, days = 91) {
-  const hab = store.find('habits', habitId);
-  const target = Number(hab?.target) || 1;
-  const out = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = addDaysISO(today(), -i);
-    const v = logFor(habitId, d);
-    const sched = isScheduled(hab, d);
-    const ratio = v / target;
-    const level = !sched && !v ? 0 : ratio >= 1 ? 4 : ratio >= 0.66 ? 3 : ratio >= 0.33 ? 2 : v > 0 ? 1 : 0;
-    out.push({ level, color: hab?.color, title: `${d} · ${v}/${target}${sched ? '' : ' (rest day)'}` });
-  }
-  return out;
-}
 
 /* ─── View ─── */
 registerView('habits', {

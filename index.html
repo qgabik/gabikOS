@@ -13,9 +13,11 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="GabikOS" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<!-- Inter is served from this origin. Asking fonts.googleapis.com for a
+     stylesheet and fonts.gstatic.com for the file is two DNS lookups and two
+     TLS handshakes before a single letter can be drawn, and the stylesheet
+     blocks rendering while it happens. -->
+<link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="styles/base.css" />
 <link rel="stylesheet" href="styles/shell.css" />
 <link rel="stylesheet" href="styles/components.css" />
@@ -127,36 +129,26 @@
   <button class="icon-btn" id="fhStop" title="Stop"></button>
 </div>
 
-<!-- Every module is an import of an import, so a browser only discovers the
-     next layer once the previous one has arrived — thirteen round trips
-     before the app could run. These tell it about all of them at once. -->
+<!-- Each of these is an import of an import, so a browser only discovers the
+     next layer once the previous one has arrived. Naming them flattens the
+     waterfall. This is the boot set and nothing more — every screen but the
+     dashboard is fetched when you open it. -->
 <link rel="modulepreload" href="js/core/store.js" />
-<link rel="modulepreload" href="js/core/router.js" />
 <link rel="modulepreload" href="js/core/util.js" />
-<link rel="modulepreload" href="js/core/ui.js" />
+<link rel="modulepreload" href="js/core/router.js" />
 <link rel="modulepreload" href="js/core/icons.js" />
 <link rel="modulepreload" href="js/core/theme.js" />
+<link rel="modulepreload" href="js/core/ui.js" />
+<link rel="modulepreload" href="js/core/data.js" />
+<link rel="modulepreload" href="js/core/views.js" />
+<link rel="modulepreload" href="js/core/rows.js" />
 <link rel="modulepreload" href="js/core/charts.js" />
 <link rel="modulepreload" href="js/core/palette.js" />
-<link rel="modulepreload" href="js/core/sync.js" />
 <link rel="modulepreload" href="js/core/markdown.js" />
+<link rel="modulepreload" href="js/core/sync.js" />
+<link rel="modulepreload" href="js/core/supabase.js" />
 <link rel="modulepreload" href="js/config.js" />
 <link rel="modulepreload" href="js/apps/dashboard.js" />
-<link rel="modulepreload" href="js/apps/tasks.js" />
-<link rel="modulepreload" href="js/apps/habits.js" />
-<link rel="modulepreload" href="js/apps/focus.js" />
-<link rel="modulepreload" href="js/apps/calendar.js" />
-<link rel="modulepreload" href="js/apps/school.js" />
-<link rel="modulepreload" href="js/apps/notes.js" />
-<link rel="modulepreload" href="js/apps/journal.js" />
-<link rel="modulepreload" href="js/apps/goals.js" />
-<link rel="modulepreload" href="js/apps/health.js" />
-<link rel="modulepreload" href="js/apps/finance.js" />
-<link rel="modulepreload" href="js/apps/builder.js" />
-<link rel="modulepreload" href="js/apps/settings.js" />
-<link rel="modulepreload" href="js/apps/account.js" />
-<link rel="modulepreload" href="js/core/health-link.js" />
-<link rel="modulepreload" href="js/core/ics.js" />
 
 <script type="module" src="js/main.js"></script>
 </body>

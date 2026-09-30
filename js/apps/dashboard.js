@@ -7,18 +7,14 @@ import { icon } from '../core/icons.js';
 import { on, emptyState, statTile, toast, openForm } from '../core/ui.js';
 import { esc, today, greeting, fmtDate, fmtMins, dayName, monthName, parseISO, pct, plural,
          relTime, sum, by, diffDays, addDaysISO, fmtMoney } from '../core/util.js';
-import { taskRow, toggleTask, newTask, dueToday, overdue, openTasks } from './tasks.js';
-import { dueTodayHabits, doneToday, logFor, bumpHabit, streak, isScheduled } from './habits.js';
-import { upcoming, catOf, newEvent } from './calendar.js';
-import { focusToday, quickStart } from './focus.js';
-import { hasEntryToday, writeEntry, moodOf, entryFor } from './journal.js';
-import { activeGoals, goalProgress } from './goals.js';
-import { metricFor, addWater } from './health.js';
-import { monthNet, monthExpense, money } from './finance.js';
-import { currentAndNext, todayLessons, subjectOf, parityLabel, weekParity } from './school.js';
+import { taskRow } from '../core/rows.js';
+import { dueToday, overdue, openTasks, dueTodayHabits, doneToday, logFor, bumpHabit, streak,
+         isScheduled, upcoming, catOf, focusToday, hasEntryToday, moodOf, entryFor,
+         activeGoals, goalProgress, metricFor, addWater, monthNet, monthExpense, money,
+         currentAndNext, todayLessons, subjectOf, parityLabel, weekParity } from '../core/data.js';
+import { run } from '../core/views.js';
 import { sparkline } from '../core/charts.js';
 import { sync } from '../core/sync.js';
-import { wireAccount } from './account.js';
 
 const QUOTES = [
   ['You do not rise to the level of your goals. You fall to the level of your systems.', 'James Clear'],
@@ -72,7 +68,7 @@ registerView('dashboard', {
           <span class="stat__icon">${icon('lock')}</span>
           <div class="grow" style="min-width:200px">
             <h3>This copy saves only on this device</h3>
-            <p class="dim mt-2" style="font-size:13px">What you write here stays in this browser, and
+            <p class="dim mt-2" style="font-size:0.8125rem">What you write here stays in this browser, and
               another device starts empty. Sign in and GabikOS follows you everywhere — it takes a few
               seconds and the top bar will read <strong>Synced</strong>.</p>
             <div class="row gap-2 mt-3 row--wrap">
@@ -215,8 +211,8 @@ registerView('dashboard', {
           const prog = goalProgress(g2);
           return `<div>
             <div class="row row--between mb-2">
-              <span class="truncate" style="font-size:13.4px;font-weight:550">${esc(g2.title)}</span>
-              <strong class="mono" style="font-size:12.5px">${prog}%</strong>
+              <span class="truncate" style="font-size:0.8375rem;font-weight:550">${esc(g2.title)}</span>
+              <strong class="mono" style="font-size:0.78125rem">${prog}%</strong>
             </div>
             <div class="bar"><i style="width:${prog}%;background:${esc(g2.color || 'var(--accent)')}"></i></div>
           </div>`;
@@ -233,7 +229,7 @@ registerView('dashboard', {
           <div><div class="stat__label">Net</div>
             <div class="stat__value" style="color:${net >= 0 ? 'var(--ok)' : 'var(--bad)'}">${money(net)}</div></div>
           <div class="tr"><div class="stat__label">Spent</div>
-            <div class="mono" style="font-size:15px;font-weight:650">${money(monthExpense())}</div></div>
+            <div class="mono" style="font-size:0.9375rem;font-weight:650">${money(monthExpense())}</div></div>
         </div>
       </div></div>` : '';
 
@@ -243,12 +239,12 @@ registerView('dashboard', {
       <div class="card__body">
         ${entry ? `<div class="row gap-3 mb-3">
             <span class="jmood">${moodOf(entry.mood).emoji}</span>
-            <div><strong style="font-size:13.6px">${esc(moodOf(entry.mood).label)} day</strong>
-              <div class="dim" style="font-size:12px">${esc(relTime(entry.createdAt || Date.now()))}</div></div>
+            <div><strong style="font-size:0.85rem">${esc(moodOf(entry.mood).label)} day</strong>
+              <div class="dim" style="font-size:0.75rem">${esc(relTime(entry.createdAt || Date.now()))}</div></div>
           </div>
-          <p class="dim" style="font-size:13px;line-height:1.6">${esc((entry.text || '').slice(0, 150))}${(entry.text || '').length > 150 ? '…' : ''}</p>
+          <p class="dim" style="font-size:0.8125rem;line-height:1.6">${esc((entry.text || '').slice(0, 150))}${(entry.text || '').length > 150 ? '…' : ''}</p>
           <button class="btn btn--sm mt-3" data-d="journal">${icon('edit')}Edit entry</button>`
-        : `<p class="dim" style="font-size:13.2px;line-height:1.6">You have not written today. Two minutes is enough.</p>
+        : `<p class="dim" style="font-size:0.825rem;line-height:1.6">You have not written today. Two minutes is enough.</p>
            <button class="btn btn--primary btn--sm mt-3" data-d="journal">${icon('edit')}Write today's entry</button>`}
       </div></div>`;
 
@@ -280,19 +276,18 @@ registerView('dashboard', {
   onMount(root) {
     on(root, 'click', '[data-go]', (e, el) => navigate(el.dataset.go));
     on(root, 'click', '[data-go-data]', () => navigate('settings', { tab: 'data' }));
-    wireAccount(root);
     on(root, 'click', '[data-hide-notice]', () => { store.setSetting('hideLocalNotice', true); render(); });
-    on(root, 'click', '[data-toggle]', (e, el) => toggleTask(el.dataset.toggle));
-    on(root, 'click', '[data-edit]', (e, el) => import('./tasks.js').then(m => m.editTask(el.dataset.edit)));
+    on(root, 'click', '[data-toggle]', (e, el) => run('tasks', 'toggleTask', el.dataset.toggle));
+    on(root, 'click', '[data-edit]', (e, el) => run('tasks', 'editTask', el.dataset.edit));
     on(root, 'click', '[data-hbump]', (e, el) => bumpHabit(el.dataset.hbump));
-    on(root, 'click', '[data-d]', (e, el) => {
-      const what = el.dataset.d;
-      if (what === 'task') newTask({ due: today() });
-      else if (what === 'focus') quickStart();
-      else if (what === 'journal') writeEntry();
-      else if (what === 'event') newEvent({ date: today() });
-    });
-    on(root, 'click', '[data-menu]', (e, el) =>
-      import('./tasks.js').then(m => m.editTask(el.dataset.menu)));
+    // Each of these opens a form that belongs to another screen, so the tap
+    // fetches that screen. It is one small download, once, on first use.
+    on(root, 'click', '[data-d]', (e, el) => ({
+      task:    () => run('tasks', 'newTask', { due: today() }),
+      focus:   () => run('focus', 'quickStart'),
+      journal: () => run('journal', 'writeEntry'),
+      event:   () => run('calendar', 'newEvent', { date: today() }),
+    })[el.dataset.d]?.());
+    on(root, 'click', '[data-menu]', (e, el) => run('tasks', 'editTask', el.dataset.menu));
   },
 });

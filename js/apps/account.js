@@ -128,7 +128,7 @@ export function openProjectSetup() {
   const cfg = supabaseConfig();
   modal.open({
     title: 'Connect a Supabase project', size: '',
-    body: `<div class="md" style="font-size:13.4px">
+    body: `<div class="md" style="font-size:0.8375rem">
         <p>GabikOS stores your data in a Supabase project. It ships pointing at one already; give it
           different values here to use your own. Both are safe to paste — the publishable key only names
           the project, and row-level security is what keeps the data private.</p>
@@ -207,7 +207,7 @@ export function accountCard() {
         <span class="stat__icon">${icon('cloud')}</span>
         <div class="grow" style="min-width:200px">
           <h3>Synced through your Claude account</h3>
-          <p class="dim mt-2" style="font-size:13px">This copy stores your data in private per-account
+          <p class="dim mt-2" style="font-size:0.8125rem">This copy stores your data in private per-account
             storage, so no separate sign-in is needed here.</p>
         </div>
       </div>
@@ -215,10 +215,10 @@ export function accountCard() {
 
   if (signedIn) return `<div class="card card--pad mb-4 callout">
       <div class="row gap-3 row--wrap">
-        <span class="avatar" style="width:42px;height:42px;font-size:16px">${esc((sync.user.email || 'G')[0].toUpperCase())}</span>
+        <span class="avatar" style="width:42px;height:42px;font-size:1rem">${esc((sync.user.email || 'G')[0].toUpperCase())}</span>
         <div class="grow" style="min-width:200px">
           <h3>Signed in</h3>
-          <p class="dim mt-1" style="font-size:13px">${esc(sync.user.email || 'your account')} — your data
+          <p class="dim mt-1" style="font-size:0.8125rem">${esc(sync.user.email || 'your account')} — your data
             follows you to every device you sign in on.</p>
           <div class="row gap-2 mt-3 row--wrap">
             <button class="btn btn--sm" data-sync-now>${icon('refresh')}Sync now</button>
@@ -234,7 +234,7 @@ export function accountCard() {
         <span class="stat__icon">${icon('user')}</span>
         <div class="grow" style="min-width:200px">
           <h3>Sign in to sync across devices</h3>
-          <p class="dim mt-2" style="font-size:13px">Without an account your data lives in this browser
+          <p class="dim mt-2" style="font-size:0.8125rem">Without an account your data lives in this browser
             only, and another device starts empty. Creating one takes a few seconds and is free.</p>
           <div class="row gap-2 mt-3 row--wrap">
             <button class="btn btn--primary btn--sm" data-signin>${icon('user')}Sign in or register</button>
