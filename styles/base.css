@@ -233,6 +233,18 @@ small{font-size:.8rem}
 @keyframes shimmer{to{background-position:200% 0}}
 @keyframes dash{to{stroke-dashoffset:0}}
 
+/* ─── Moving between screens ─────────────────────────────────────
+   Only the view swaps; the sidebar, the top bar and the tab bar are named
+   so they stay put rather than cross-fading with everything else. */
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:vtOut .16s var(--ease) both}
+::view-transition-new(root){animation:vtIn .22s var(--ease-out) both}
+@keyframes vtOut{to{opacity:0}}
+@keyframes vtIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+@media (prefers-reduced-motion:reduce){
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
+}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
     transition-duration:.01ms!important;scroll-behavior:auto!important}

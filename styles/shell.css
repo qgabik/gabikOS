@@ -160,6 +160,10 @@ kbd{font-family:var(--font);font-size:0.65625rem;font-weight:600;padding:2px 5.5
 /* ─── Responsive ─── */
 @media (max-width:1000px){
   .shell,.shell[data-collapsed="true"]{grid-template-columns:1fr}
+  /* A drawer cannot be collapsed to a rail, so the button that would do it
+     is an offer of nothing. */
+  .sidebar__collapse{display:none}
+  .sidebar__head{padding-top:calc(14px + env(safe-area-inset-top,0px))}
   .sidebar{position:fixed;inset:0 auto 0 0;width:var(--sidebar-w);
     transform:translateX(-102%);transition:transform var(--t);box-shadow:var(--shadow-lg)}
   .sidebar.is-open{transform:none}

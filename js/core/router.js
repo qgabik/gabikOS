@@ -64,7 +64,31 @@ function parseHash() {
 }
 
 let rendering = false;
+
+/**
+ * Moving between screens used to be a hard cut: the old markup vanished and
+ * the new markup appeared in the same frame, which on a phone reads as a
+ * flicker rather than a move. Where the browser can do it, the swap is
+ * wrapped in a view transition and cross-fades instead.
+ *
+ * It is a wrapper, not a dependency: if the API is missing — or the reader
+ * has asked for less motion — the same function runs unwrapped.
+ */
+const canTransition = () =>
+  typeof document.startViewTransition === 'function' &&
+  !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let drawn = false;
 export function render() {
+  // The first draw happens behind the boot screen, with nothing to move from.
+  if (!drawn || !canTransition() || rendering) return draw();
+  // A transition freezes the page until the callback returns, so it must only
+  // ever wrap synchronous work — draw() is.
+  document.startViewTransition(() => draw());
+}
+
+function draw() {
+  drawn = true;
   const { id, params: p } = parseHash();
   const view = views.get(id) || views.get('dashboard');
   const host = document.getElementById('view');

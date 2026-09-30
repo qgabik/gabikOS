@@ -473,7 +473,14 @@
 .createmenu__item:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-1px)}
 .createmenu__ic{width:32px;height:32px;flex:none;border-radius:10px;display:grid;place-items:center;
   background:var(--surface-3);color:var(--accent)}
-@media (max-width:460px){.createmenu{grid-template-columns:1fr}}
+/* One column turned eleven choices into a page and a half of scrolling on
+   the screen this sheet slides up on. Two fit, with room for the longest
+   label. */
+@media (max-width:460px){
+  .createmenu{gap:7px}
+  .createmenu__item{padding:11px 10px;gap:9px;font-size:0.82rem}
+  .createmenu__ic{width:29px;height:29px;border-radius:9px}
+}
 
 /* ─── Form widgets ─── */
 .form-fields{display:grid;grid-template-columns:1fr 1fr;gap:15px}
