@@ -15,7 +15,9 @@ const out = process.argv[2] || 'gabikos.html';
 
 const pick = re => (src.match(re) || [])[0] || '';
 const title = pick(/<title>[\s\S]*?<\/title>/i);
-const fontLinks = [...src.matchAll(/<link[^>]*fonts\.(?:googleapis|gstatic)\.com[^>]*>/gi)].map(m => m[0]);
+// Inter is served from this repository now, so what has to come across is the
+// preload, not a stylesheet link to somebody else's origin.
+const fontLinks = [...src.matchAll(/<link[^>]*rel="preload"[^>]*as="font"[^>]*>/gi)].map(m => m[0]);
 const cssLinks  = [...src.matchAll(/<link[^>]*href="styles\/[^"]+"[^>]*>/gi)].map(m => m[0]);
 const preloads  = [...src.matchAll(/<link[^>]*rel="modulepreload"[^>]*>/gi)].map(m => m[0]);
 const body      = (src.match(/<body[^>]*>([\s\S]*)<\/body>/i) || [, ''])[1].trim();
