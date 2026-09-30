@@ -4,14 +4,15 @@
 
 /* ─── Buttons ─── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 15px;
-  border-radius:var(--r-sm);font-size:0.8375rem;font-weight:600;letter-spacing:-.01em;
+  border-radius:var(--r-sm);font-size:0.8375rem;font-weight:600;
   background:var(--surface-2);border:1px solid var(--line);color:var(--text);
   transition:all var(--t-fast);white-space:nowrap;flex:none}
+.btn{box-shadow:var(--hairline)}
 .btn:hover{background:var(--surface-3);border-color:var(--line-strong);transform:translateY(-1px)}
-.btn:active{transform:translateY(0) scale(.985)}
+.btn:active{transform:translateY(0) scale(.97);transition:transform var(--t-press)}
 .btn:disabled{opacity:.45;pointer-events:none}
 .btn--primary{background:linear-gradient(140deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;
-  box-shadow:0 4px 14px -5px var(--accent-line)}
+  box-shadow:0 4px 14px -5px var(--accent-line),inset 0 1px 0 rgba(255,255,255,.22)}
 .btn--primary:hover{filter:brightness(1.09);box-shadow:0 8px 22px -6px var(--accent-line)}
 .btn--ghost{background:transparent;border-color:transparent;color:var(--text-2)}
 .btn--ghost:hover{background:var(--hover);color:var(--text);border-color:transparent}
@@ -29,16 +30,22 @@
 .icon-btn{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);
   color:var(--text-2);transition:all var(--t-fast);border:1px solid transparent}
 .icon-btn:hover{background:var(--hover);color:var(--text)}
-.icon-btn:active{transform:scale(.93)}
+.icon-btn:active{transform:scale(.9);transition:transform var(--t-press)}
 .icon-btn--sm{width:30px;height:30px;border-radius:var(--r-xs)}
 .icon-btn--sm .ic{width:16px;height:16px}
 .icon-btn--danger:hover{background:var(--bad-soft);color:var(--bad)}
 
 /* ─── Cards ─── */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+  box-shadow:var(--card-shadow);
   transition:border-color var(--t-fast),transform var(--t-fast),box-shadow var(--t-fast)}
 .card--pad{padding:18px}
-.card--hover:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--shadow)}
+.card--hover{cursor:pointer}
+.card--hover:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--card-shadow-lift)}
+.card--hover:active{transform:translateY(0) scale(.995);transition:transform var(--t-press)}
+/* a card that is only ever a heading and a list does not need to be measured
+   before it scrolls into view */
+.card--list{content-visibility:auto;contain-intrinsic-size:auto 320px}
 .card__head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line)}
 .card__head h3{flex:1;font-size:0.9125rem;font-weight:650}
 .card__body{padding:18px}
@@ -46,24 +53,42 @@
 .card__foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
 
 .grid{display:grid;gap:16px}
-.grid--2{grid-template-columns:repeat(auto-fit,minmax(310px,1fr))}
-.grid--3{grid-template-columns:repeat(auto-fit,minmax(255px,1fr))}
-.grid--4{grid-template-columns:repeat(auto-fit,minmax(196px,1fr))}
-.grid--stat{grid-template-columns:repeat(auto-fit,minmax(172px,1fr))}
+/* min() keeps the track from insisting on a width the screen does not have.
+   Without it a 310px minimum overflowed a 320px phone by six pixels — the
+   smallest screens this has to work on are exactly the ones it broke. */
+.grid--2{grid-template-columns:repeat(auto-fit,minmax(min(310px,100%),1fr))}
+.grid--3{grid-template-columns:repeat(auto-fit,minmax(min(255px,100%),1fr))}
+.grid--4{grid-template-columns:repeat(auto-fit,minmax(min(196px,100%),1fr))}
+.grid--stat{grid-template-columns:repeat(auto-fit,minmax(min(172px,100%),1fr))}
 
 /* ─── Stat tile ─── */
-.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
-  display:flex;flex-direction:column;gap:9px;position:relative;overflow:hidden;
-  transition:all var(--t-fast)}
-.stat:hover{border-color:var(--line-strong);transform:translateY(-2px)}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+  padding:13px 14px 14px;box-shadow:var(--card-shadow);
+  display:flex;flex-direction:column;gap:5px;position:relative;overflow:hidden;
+  text-align:left;width:100%;
+  transition:border-color var(--t-fast),transform var(--t-fast),box-shadow var(--t-fast)}
+.stat:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--card-shadow-lift)}
+button.stat:active{transform:scale(.985);transition:transform var(--t-press)}
 .stat__top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.stat__label{font-size:0.725rem;font-weight:600;color:var(--text-3);letter-spacing:.045em;text-transform:uppercase}
-.stat__icon{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;
+.stat__label{font-size:0.7rem;font-weight:650;color:var(--text-3);letter-spacing:.05em;
+  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stat__icon{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;
   background:var(--accent-soft);color:var(--accent)}
-.stat__icon .ic{width:16px;height:16px}
-.stat__value{font-size:1.625rem;font-weight:720;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat__icon .ic{width:15px;height:15px}
+.stat__value{font-size:1.6rem;font-weight:730;letter-spacing:-.04em;line-height:1.12;
+  font-variant-numeric:tabular-nums;margin-top:1px}
 .stat__value small{font-size:0.8125rem;font-weight:600;color:var(--text-3);letter-spacing:0}
-.stat__sub{font-size:0.7375rem;color:var(--text-3);display:flex;align-items:center;gap:5px}
+.stat__sub{font-size:0.725rem;color:var(--text-3);display:flex;align-items:center;gap:5px;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The tile had a third of its height doing nothing. A goal that can be drawn
+   is worth more there than the space. */
+.stat__meter{height:3px;border-radius:99px;background:var(--surface-3);overflow:hidden;margin-top:8px}
+.stat__meter i{display:block;height:100%;border-radius:99px;background:var(--tone,var(--accent));
+  transition:width var(--t-slow)}
+.stat--ok .stat__meter i{background:var(--ok)}
+.stat--warn .stat__meter i{background:var(--warn)}
+.stat--bad .stat__meter i{background:var(--bad)}
+.stat--info .stat__meter i{background:var(--info)}
 .stat__delta{font-weight:650;display:inline-flex;align-items:center;gap:3px}
 .stat__delta--up{color:var(--ok)}.stat__delta--down{color:var(--bad)}
 .stat--ok .stat__icon{background:var(--ok-soft);color:var(--ok)}
@@ -128,12 +153,20 @@ button.chip:hover{background:var(--active);color:var(--text)}
 
 /* segmented control */
 .seg{display:inline-flex;padding:3px;gap:2px;border-radius:var(--r-sm);background:var(--surface-2);
-  border:1px solid var(--line);flex:none;max-width:100%;overflow-x:auto;scrollbar-width:none}
+  border:1px solid var(--line);flex:none;max-width:100%;overflow-x:auto;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch}
+/* A control wider than the screen must look cut off, not finished. The shade
+   is an inset shadow rather than a mask on purpose: a masked edge is not
+   hit-testable, so the last option you can see would be the one you cannot
+   tap. A shadow changes nothing about where a finger lands. */
+.seg.is-over,.scroller.is-over{box-shadow:inset -19px 0 15px -15px var(--fade-edge)}
 .seg::-webkit-scrollbar{display:none}
 .seg button{padding:6px 12px;border-radius:7px;font-size:0.7875rem;font-weight:600;color:var(--text-2);
-  transition:all var(--t-fast);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  transition:color var(--t-fast),background var(--t-fast);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:6px}
 .seg button:hover{color:var(--text)}
-.seg button.is-on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+.seg button:active{transform:scale(.96);transition:transform var(--t-press)}
+.seg button.is-on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm),var(--hairline)}
 [data-theme="dark"] .seg button.is-on{background:var(--surface-3)}
 .seg .ic{width:14px;height:14px}
 
@@ -152,10 +185,13 @@ button.chip:hover{background:var(--active);color:var(--text)}
 .ring__bg{stroke:var(--surface-3)}
 .ring__fg{stroke:var(--accent);transition:stroke-dashoffset var(--t-slow)}
 .ring__txt{position:absolute;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+/* The figure the ring is about, sized to fit whatever it turns out to be. */
+.ring__txt--val{font-size:0.95rem;font-weight:750;letter-spacing:-.04em}
+.ring__txt--val.is-long{font-size:0.8rem;letter-spacing:-.045em}
 
 /* ─── Empty / loading ─── */
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
-  padding:56px 24px;text-align:center;color:var(--text-3)}
+  padding:clamp(34px,7vw,56px) 24px;text-align:center;color:var(--text-3)}
 .empty__icon{width:62px;height:62px;border-radius:19px;display:grid;place-items:center;
   background:var(--surface-2);border:1px solid var(--line);color:var(--text-3)}
 .empty__icon .ic{width:27px;height:27px}
@@ -169,6 +205,7 @@ button.chip:hover{background:var(--active);color:var(--text)}
 .list__row:last-child{border-bottom:0}
 .list__row:hover{background:var(--hover)}
 .list__row--btn{cursor:pointer;text-align:left;width:100%}
+.list__row--btn:active{background:var(--active)}
 .list__main{flex:1;min-width:0}
 .list__title{font-size:0.8625rem;font-weight:550;display:flex;align-items:center;gap:8px}
 .list__sub{font-size:0.7375rem;color:var(--text-3);display:flex;align-items:center;gap:7px;margin-top:2px;flex-wrap:wrap}
@@ -296,3 +333,16 @@ button.chip:hover{background:var(--active);color:var(--text)}
 .menu button.is-danger:hover{background:var(--bad-soft);color:var(--bad)}
 .menu hr{height:1px;background:var(--line);border:0;margin:5px 0}
 .menu .ic{width:16px;height:16px}
+
+/* ─── A screen on its way ────────────────────────────────────────
+   Shown for the moment between opening a screen and its code arriving.
+   It holds the same shape the screen will have, so nothing jumps. */
+.page-skeleton{padding-top:4px}
+.page-skeleton .skeleton{border-radius:var(--r-md)}
+@media (prefers-reduced-motion:reduce){.skeleton{animation:none;background:var(--surface-2)}}
+
+/* A row of two or three equal actions. Left to wrap, the last one lands
+   alone on a line of its own and the card grows a row for nothing. */
+.btn-pair{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+.btn-pair .btn{min-width:0;padding:0 8px;overflow:hidden}
+.btn-pair .btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

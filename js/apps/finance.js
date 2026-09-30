@@ -152,13 +152,17 @@ registerView('finance', {
        with 70% of the month left to pay for. Status colour never carries this
        alone — the sentence under the bar says which case it is. */
     const paceTone = !budgetTotal ? '' : spentPct >= 100 ? 'bad' : spentPct > elapsed + 5 ? 'warn' : 'ok';
+    /* "with 0 days still to go" on the last day of the month is a sentence
+       nobody would write. */
+    const daysLeft = daysInMonth - dayNow;
+    const left = daysLeft > 0 ? `${plural(daysLeft, 'day')} still to go` : 'and the month is done';
     const paceNote = !budgetTotal
       ? `${money(perDay)} a day so far · set a budget to see whether that is fast or slow`
       : spentPct >= 100
-        ? `${money(exp - budgetTotal)} over your ${money(budgetTotal)} of budgets, with ${plural(daysInMonth - dayNow, 'day')} still to go`
+        ? `${money(exp - budgetTotal)} over your ${money(budgetTotal)} of budgets, ${left}`
         : spentPct > elapsed + 5
-          ? `Spending faster than the month is passing — ${spentPct}% of budget, ${elapsed}% of September`
-          : `${money(budgetTotal - exp)} of ${money(budgetTotal)} left, and ${plural(daysInMonth - dayNow, 'day')} to go`;
+          ? `Spending faster than the month is passing — ${spentPct}% of budget, ${elapsed}% of ${monthName(mDate.getMonth())}`
+          : `${money(budgetTotal - exp)} of ${money(budgetTotal)} left, ${left}`;
     const paceHtml = !isThisMonth ? '' : `<div class="card card--pad mb-6 pace">
       <div class="row row--between row--wrap gap-3">
         <div>
@@ -167,7 +171,11 @@ registerView('finance', {
         </div>
         <div class="tr">
           <div class="pace__label">Day ${dayNow} of ${daysInMonth}</div>
-          <div class="pace__proj">${money(projected)}<span class="dim"> by the ${daysInMonth}th</span></div>
+          ${/* On the last day the projection IS what has been spent, and the
+                hero printed the same figure twice, side by side. */ ''}
+          ${Math.abs(projected - exp) > Math.max(1, exp * 0.02)
+            ? `<div class="pace__proj">${money(projected)}<span class="dim"> by the ${daysInMonth}th</span></div>`
+            : `<div class="pace__proj pace__proj--done">${daysLeft > 0 ? 'on this pace' : 'month complete'}</div>`}
           ${expDelta != null ? `<div class="pace__vs ${expDelta > 0 ? 'is-up' : 'is-down'}">
             ${icon(expDelta > 0 ? 'trendUp' : 'trendDown', 'ic ic--sm')}${Math.abs(expDelta)}% vs ${money(prevExp)} last month
           </div>` : ''}
@@ -255,7 +263,7 @@ registerView('finance', {
       .sort((a, b) => b.n - a.n).slice(0, 5);
     const quickHtml = `<div class="quickadd mb-6">
       <span class="quickadd__label">${icon('zap', 'ic ic--sm')}Log in one tap</span>
-      <div class="quickcats">
+      <div class="quickcats scroller">
         ${recentCats.map(c => `<button class="quickcat" data-quick="${esc(c.label)}">
           ${esc(c.label)}</button>`).join('')}
         <button class="quickcat quickcat--more" data-new-tx>${icon('plus', 'ic ic--sm')}Other</button>

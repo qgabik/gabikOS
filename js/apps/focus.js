@@ -197,14 +197,18 @@ registerView('focus', {
       return { label: dayName(d, true)[0], value: sum(S().focusSessions.filter(s => s.date === d).map(s => s.minutes)) };
     });
 
-    return pageHead('Focus', `${fmtMins(tMin)} focused today · ${fmtMins(wMin)} this week`, '', 'timer') + `
+    const stats = `
     <div class="grid grid--stat mb-6">
       ${statTile({ label: 'Today', value: fmtMins(tMin), sub: `${pct(tMin, goal)}% of ${fmtMins(goal)} goal`, icon: 'timer', tone: tMin >= goal ? 'ok' : '' })}
       ${statTile({ label: 'This week', value: fmtMins(wMin), sub: plural(S().focusSessions.filter(s => addDaysISO(today(), -6) <= s.date).length, 'session'), icon: 'zap', tone: 'info' })}
       ${statTile({ label: 'All time', value: fmtMins(sum(sessions.map(s => s.minutes))), sub: plural(sessions.length, 'session'), icon: 'award', tone: 'warn' })}
       ${statTile({ label: 'Round', value: `${timer.round}<small>/${p.rounds}</small>`, sub: 'until a long break', icon: 'repeat' })}
-    </div>
+    </div>`;
 
+    /* The timer is the whole point of the screen. It used to start below four
+       stat tiles, which on a phone meant scrolling past your own history to
+       reach the button you came to press. */
+    return pageHead('Focus', `${fmtMins(tMin)} focused today · ${fmtMins(wMin)} this week`, '', 'timer') + `
     <div class="grid grid--2 mb-6">
       <div class="card focus-card">
         <div class="seg mb-4" data-modes>
@@ -242,6 +246,8 @@ registerView('focus', {
         </div>
       </div>
     </div>
+
+    ${stats}
 
     <div class="card">
       <div class="card__head">${icon('list')}<h3>Session log</h3><span class="nav__badge">${sessions.length}</span></div>

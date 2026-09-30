@@ -112,11 +112,42 @@ kbd{font-family:var(--font);font-size:0.65625rem;font-weight:600;padding:2px 5.5
 .view__in{max-width:1320px;margin:0 auto;animation:fadeUp .17s var(--ease-out)}
 
 /* page header */
-.page-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:22px}
-.page-head__txt{flex:1;min-width:220px}
+.page-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.page-head__txt{flex:1;min-width:200px}
 .page-head h1{display:flex;align-items:center;gap:11px}
 .page-head p{color:var(--text-2);font-size:0.85rem;margin-top:4px}
 .page-head__actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* The icon, the title, the subtitle, a row of tabs and a button stacked to
+   about 250px — a third of a phone screen spent saying where you are. */
+@media (max-width:640px){
+  .page-head{gap:10px;margin-bottom:14px;align-items:center}
+  .page-head__txt{min-width:0;flex:1 1 60%}
+  .page-head h1{gap:9px;font-size:1.3rem;letter-spacing:-.03em}
+  .page-head p{font-size:0.78rem;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .page-head__icon{width:32px;height:32px;border-radius:10px}
+  .page-head__icon .ic{width:18px;height:18px}
+  /* the action belongs beside the title, not on a line of its own */
+  .page-head{display:grid;grid-template-columns:minmax(0,1fr) auto}
+  .page-head__txt{grid-column:1;grid-row:1}
+  .page-head__actions{grid-column:2;grid-row:1;justify-self:end;flex:none}
+  /* …but a segmented control is navigation, not an action. It takes the
+     full width on its own line, with the button it was crowding beside it,
+     so the two finally line up. */
+  .page-head__actions:has(.seg){grid-column:1/-1;grid-row:2;justify-self:stretch;
+    display:flex;align-items:stretch;gap:8px;margin-top:2px}
+  .page-head__actions:has(.seg) .seg{flex:1 1 auto;min-width:0}
+  /* Spread the options across the bar rather than leaving two thirds of it
+     empty, which is what three icon-only buttons in a full-width control
+     looked like. */
+  .page-head__actions:has(.seg) .seg > button{flex:1 1 0;justify-content:center}
+  .page-head__actions:has(.seg) .btn{flex:none;height:auto;align-self:stretch}
+  .page-head__actions .btn{height:36px;padding:0 12px;font-size:0.8rem}
+  .page-head__actions .btn span{display:none}
+  .page-head__actions .btn .ic{width:17px;height:17px}
+  /* …unless it is the only thing offered, in which case it keeps its words */
+  .page-head__actions .btn--block span,
+  .page-head__actions .btn:only-child span{display:inline}
+}
 
 /* scrim (mobile) */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);z-index:39;
@@ -143,14 +174,27 @@ kbd{font-family:var(--font);font-size:0.65625rem;font-weight:600;padding:2px 5.5
   .shell[data-collapsed="true"] .nav__group{border-top:0;margin-top:14px;padding-top:0}
 }
 @media (max-width:640px){
-  :root{--topbar-h:60px}
-  .searchbar span{display:none}
-  .searchbar{flex:none;width:38px;justify-content:center;padding:0}
+  :root{--topbar-h:56px}
   body{font-size:0.875rem}
   h1{font-size:1.44rem}
   .searchbar kbd{display:none}
   .hide-sm{display:none}
   .view{padding-bottom:100px}
+}
+
+/* ─── The phone's top bar ────────────────────────────────────────
+   It was five undifferentiated icons and a search collapsed to a 38px
+   square — the one control worth having, made unusable, next to four
+   that are not needed at a glance. Search takes the room instead;
+   sync and the timer moved to the drawer, where they are read rather
+   than watched. */
+@media (max-width:1000px){
+  .topbar{gap:9px;padding:0 14px}
+  .searchbar{flex:1;min-width:0;max-width:none;height:38px}
+  .searchbar span{display:block;font-size:0.84rem}
+  .topbar__right{gap:6px}
+  .topbar #syncChip{display:none}
+  .topbar #focusBtn{display:none}
 }
 
 /* ─── Installed as a phone app ───────────────────────────────────
@@ -169,31 +213,40 @@ kbd{font-family:var(--font);font-size:0.65625rem;font-weight:600;padding:2px 5.5
 
 /* ─── Bottom tab bar (phones) ─────────────────────────────────────
    The common destinations within thumb reach, so switching module is
-   one tap instead of hamburger → drawer → tap. */
+   one tap instead of hamburger → drawer → tap.
+
+   The mark for "you are here" used to be a 2.5px line along the very top
+   edge of the bar, which on a phone reads as a rendering artefact rather
+   than a state. It is a filled pill behind the icon now — the same thing
+   iOS and Android both settled on, because it is legible at a glance and
+   survives being half-covered by a thumb. */
 .tabbar{display:none}
 @media (max-width:1000px){
   .tabbar{
     display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:stretch;
     position:fixed;left:0;right:0;bottom:0;z-index:35;
     background:var(--bg-2);border-top:1px solid var(--line);
+    box-shadow:0 -1px 0 var(--line),0 -8px 24px -18px rgba(0,0,0,.7);
+    padding:5px 4px 0;
     padding-bottom:env(safe-area-inset-bottom,0px);
   }
-  .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-    min-height:54px;padding:7px 4px;color:var(--text-3);position:relative;
+  .tab{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;
+    min-height:54px;padding:0 2px 7px;color:var(--text-3);position:relative;
     transition:color var(--t-fast);-webkit-tap-highlight-color:transparent}
-  .tab:active{transform:none;background:var(--hover)}
   .tab.is-on{color:var(--hue,var(--accent))}
-  .tab__ic{position:relative;display:grid;place-items:center;height:24px}
-  .tab__ic .ic{width:22px;height:22px;stroke-width:1.9}
-  .tab.is-on .tab__ic{transform:translateY(-1px)}
-  .tab__lbl{font-size:0.65rem;font-weight:600;letter-spacing:.01em;line-height:1}
-  .tab__dot{position:absolute;top:-1px;right:-4px;width:7px;height:7px;border-radius:50%;
-    background:var(--bad);border:1.5px solid var(--bg-2)}
-  .tab.is-on::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
-    width:26px;height:2.5px;border-radius:0 0 3px 3px;background:var(--hue,var(--accent))}
+  .tab__ic{position:relative;display:grid;place-items:center;height:30px;width:58px;max-width:100%;
+    border-radius:99px;transition:background var(--t),transform var(--t)}
+  .tab__ic .ic{width:22px;height:22px;stroke-width:1.9;position:relative;z-index:1}
+  .tab.is-on .tab__ic{background:color-mix(in srgb,var(--hue,var(--accent)) 17%,transparent)}
+  .tab:active .tab__ic{transform:scale(.9);transition:transform var(--t-press)}
+  .tab__lbl{font-size:0.655rem;font-weight:600;letter-spacing:.01em;line-height:1.1;
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tab.is-on .tab__lbl{font-weight:700}
+  .tab__dot{position:absolute;top:2px;right:12px;width:7px;height:7px;border-radius:50%;
+    background:var(--bad);border:1.5px solid var(--bg-2);z-index:2}
 
   /* content must clear the bar */
-  .view{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
+  .view{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
   .focus-hud{bottom:calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom,0px))}
   .toasts{bottom:calc(var(--tabbar-h) + 14px + env(safe-area-inset-bottom,0px))}
 

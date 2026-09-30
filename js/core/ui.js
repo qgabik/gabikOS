@@ -445,8 +445,18 @@ export const pageHead = (title, subtitle, actions = '', iconName = '', hue = '')
     ${actions ? `<div class="page-head__actions">${actions}</div>` : ''}
   </div>`;
 
-export const statTile = ({ label, value, sub = '', icon: ic = 'star', tone = '', delta }) => `
-  <div class="stat ${tone ? 'stat--' + tone : ''}">
+/**
+ * A stat tile.
+ *
+ * `meter` (0–100) draws a line across the bottom of the tile. A third of
+ * every tile's height was empty; a goal you can see the shape of is worth
+ * more there than the space was.
+ *
+ * `go` makes the whole tile the way into the screen it summarises, which is
+ * what people try to tap anyway.
+ */
+export const statTile = ({ label, value, sub = '', icon: ic = 'star', tone = '', delta, meter, go = '' }) => {
+  const inner = `
     <div class="stat__top">
       <span class="stat__label">${esc(label)}</span>
       <span class="stat__icon">${icon(ic)}</span>
@@ -457,4 +467,34 @@ export const statTile = ({ label, value, sub = '', icon: ic = 'star', tone = '',
         ${icon(delta >= 0 ? 'trendUp' : 'trendDown', 'ic ic--sm')}${Math.abs(delta)}%</span>` : ''}
       ${sub ? `<span>${esc(sub)}</span>` : ''}
     </div>` : ''}
-  </div>`;
+    ${meter == null ? '' : `<div class="stat__meter"><i style="width:${Math.max(0, Math.min(100, meter))}%"></i></div>`}`;
+  const cls = `stat ${tone ? 'stat--' + tone : ''}`;
+  return go
+    ? `<button class="${cls}" data-go="${esc(go)}" aria-label="${esc(label)} — open">${inner}</button>`
+    : `<div class="${cls}">${inner}</div>`;
+};
+
+/**
+ * Mark the scrollers that are actually cut off, so the edge fade only shows
+ * where there is something past it. A control wider than the screen with no
+ * sign of it reads as a control missing its last option.
+ */
+export function markOverflow(root = document) {
+  for (const el of root.querySelectorAll('.seg, .scroller')) {
+    const paint = () => el.classList.toggle('is-over',
+      el.scrollWidth > el.clientWidth + 2 &&
+      el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    paint();
+    if (!el.dataset.overWatch) {
+      el.dataset.overWatch = '1';
+      el.addEventListener('scroll', paint, { passive: true });
+    }
+    // and put the selected option in view, so "All open" is not off the edge
+    const on = el.querySelector('.is-on');
+    if (on && el.scrollWidth > el.clientWidth + 2) {
+      const want = on.offsetLeft - (el.clientWidth - on.offsetWidth) / 2;
+      el.scrollLeft = Math.max(0, want);
+      paint();
+    }
+  }
+}

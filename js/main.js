@@ -5,7 +5,7 @@ import { store, S, settings, profile, seedStarter, barTabs } from './core/store.
 import { startRouter, render, navigate, navViews, currentView, onRender } from './core/router.js';
 import { applyTheme, toggleTheme, watchSystemTheme, hueFor } from './core/theme.js';
 import { icon } from './core/icons.js';
-import { qs, qsa, on, toast, openForm, modal, confirmDialog, closeMenu } from './core/ui.js';
+import { qs, qsa, on, toast, openForm, modal, confirmDialog, closeMenu, markOverflow } from './core/ui.js';
 import { initPalette, openPalette, closePalette, isOpen as paletteOpen, setCommands } from './core/palette.js';
 import { initSync, sync, syncLabel, onSyncChange, syncNow, flush } from './core/sync.js';
 import { hasStoredSession, hasSessionInUrl, canUseSupabase } from './core/supabase.js';
@@ -356,7 +356,7 @@ async function boot() {
   const syncChrome = debounce(() => { renderNav(); renderChrome(); renderTabs(); }, 80);
   store.subscribe(syncChrome);
   document.addEventListener('gabikos:chrome', () => { renderNav(); renderChrome(); renderTabs(); });
-  onRender(() => { renderNav(); renderChrome(); renderTabs(); });
+  onRender(() => { renderNav(); renderChrome(); renderTabs(); markOverflow(qs('#view')); });
 
   window.addEventListener('gabikos:save-error', () => {
     toast('Storage is full — export a backup and clear some old data', 'bad', { duration: 9000 });

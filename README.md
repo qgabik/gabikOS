@@ -64,10 +64,17 @@ every device after that pulls it down.
 
 ## On your phone
 
-Navigation lives in a bottom bar within thumb reach — Dashboard, Tasks, School, Habits and *More* —
-so switching module is one tap instead of hamburger → drawer → tap. The timetable shows one day at a
-time with a day picker (swipe left or right to move between days) rather than a five-column grid you
-have to scroll sideways.
+Navigation lives in a bottom bar within thumb reach — Dashboard, Money, School and Health by default,
+plus *More* — so switching module is one tap instead of hamburger → drawer → tap. Which four are there
+is yours to set, under *Settings → Appearance*. The bar marks where you are with a filled pill behind
+the icon rather than a hairline along the top edge, which on a phone reads as a rendering artefact.
+
+The top bar carries the two things worth having there — search, and the button that creates something —
+and nothing else; sync state and the timer live in the drawer, where they are read rather than watched.
+
+The timetable shows one day at a time with a day picker (swipe left or right to move between days)
+rather than a five-column grid you have to scroll sideways. The month calendar marks days with coloured
+dots instead of event titles cropped to "10:0…", and the day itself is what you tap to read them.
 
 
 Open the site and install it to the home screen — it then runs full-screen with its own icon, no
@@ -240,36 +247,67 @@ collections that are empty.
 
 ## How it's built
 
-Plain ES modules, plain CSS, zero dependencies.
+Plain ES modules, plain CSS, zero dependencies, no build step.
 
 ```
 index.html              the shell
+sw.js                   offline support — network-first for code, cache-first for fonts
+fonts/                  Inter, latin and latin-ext, served from here
 styles/
   base.css              design tokens, reset, light & dark themes
-  shell.css             sidebar, topbar, responsive layout
+  shell.css             sidebar, topbar, tab bar, responsive layout
   components.css        buttons, cards, inputs, modals, palette, toasts
   apps.css              per-module styles
 js/
   main.js               boot, sidebar, keyboard shortcuts, onboarding
   core/
     store.js            state, persistence, undo history, import/export
-    router.js           hash routing + view registry
+    data.js             every figure the screens read — no markup, no module to load
+    views.js            the list of screens, and where to fetch each one
+    router.js           hash routing, view registry, lazy screens
+    rows.js             the pieces of markup more than one screen draws
     ui.js               modal, declarative form engine, toasts, context menus
     palette.js          command palette and universal search
     charts.js           inline SVG charts — sparkline, bars, donut, line, heatmap
     markdown.js         small, escape-first markdown renderer
     icons.js            94 inline SVG icons
-    theme.js            dark / light / auto + accent colour
+    theme.js            six themes + accent colour, with a contrast guard
+    sync.js             cloud sync, sharded into domain slices
+    supabase.js         lazy loader for the SDK
+    health-link.js      the Apple Health transport
+    ics.js              iCalendar reader for school timetable exports
     util.js             dates, formatting, fuzzy matching, helpers
   apps/                 one file per module, each registers its own view
+tools/
+  check-config.mjs      fails the build on a deploy file its host would reject
+  check-layout.mjs      every screen at 393px and 320px, and every control under a thumb
 ```
 
 Adding a module is one file — call `registerView()` with a `render()` that returns HTML and an
-optional `onMount()`, and it appears in the sidebar and the command palette automatically.
+optional `onMount()`, then list it in `core/views.js` so it appears in the sidebar, the tab bar and
+the command palette.
+
+### It loads one screen, not thirteen
+
+Opening GabikOS used to download every module — the timetable editor, the Health bridge, the tracker
+builder — before the dashboard could draw. `core/views.js` describes each screen without any of its
+code, so the sidebar, the badges and the search work from a boot that fetched one; the rest arrive
+when you open them. Actions behave the same way: *New task* in the command palette fetches the Tasks
+module on the tap.
+
+That is why `core/data.js` exists. The dashboard needs today's water and your next lesson, not the
+Health screen and the timetable editor, so the figures live apart from the screens that draw them.
+
+### It opens with no signal
+
+The service worker asks the network first for anything that is code, and falls back to its cache only
+when the network does not answer. Online you always run the newest build — a cache-first worker is the
+most reliable way to leave a phone running a version from last week — and offline the app still opens
+with everything already on the device. What it keeps is not a hand-written list: the page reports what
+it actually loaded once the first screen is up, so an import that moves cannot quietly break it.
 
 ## Notes on privacy
 
-There is no analytics, no telemetry and no network traffic at all, with one exception: a stylesheet
-link to Google Fonts for the Inter typeface. If you would rather have zero external requests, delete
-the two `<link>` tags pointing at `fonts.googleapis.com` in `index.html` — the app falls back to your
-system font and looks nearly identical.
+No analytics, no telemetry, and no request to anyone but your own Supabase project. Inter is served
+from this repository (`fonts/`), so nothing is fetched from Google or anywhere else — opening GabikOS
+tells no third party that you did.

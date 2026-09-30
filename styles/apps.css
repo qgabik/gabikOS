@@ -155,7 +155,7 @@
 
 /* ─── Focus ─── */
 .focus-card{display:flex;flex-direction:column;align-items:center;padding:24px 20px 26px}
-.timer-disc{position:relative;width:min(272px,74vw);aspect-ratio:1;display:grid;place-items:center;margin:6px 0}
+.timer-disc{position:relative;width:min(272px,62vw);aspect-ratio:1;display:grid;place-items:center;margin:6px 0}
 .timer-disc svg{width:100%;height:100%}
 .timer-disc circle{fill:none;stroke-width:9;stroke-linecap:round}
 .td-bg{stroke:var(--surface-3)}
@@ -174,8 +174,11 @@
 .cal__dow{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line);background:var(--surface-2)}
 .cal__dow span{padding:10px 8px;font-size:0.675rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   color:var(--text-3);text-align:center}
-.cal__grid{display:grid;grid-template-columns:repeat(7,1fr)}
-.cal__cell{min-height:104px;padding:7px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+/* Seven equal columns means minmax(0,1fr), not 1fr: a plain 1fr floors each
+   track at its content, and one long event title pushed the whole month grid
+   off the side of the phone. */
+.cal__grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cal__cell{min-height:104px;min-width:0;padding:7px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
   display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:background var(--t-fast);position:relative}
 .cal__cell:nth-child(7n){border-right:0}
 .cal__cell:nth-last-child(-n+7){border-bottom:0}
@@ -185,7 +188,7 @@
 .cal__num{font-size:0.775rem;font-weight:650;color:var(--text-2);width:23px;height:23px;display:grid;place-items:center;
   border-radius:50%;flex:none}
 .cal__cell.is-today .cal__num{background:var(--accent);color:#fff}
-.cal__items{display:flex;flex-direction:column;gap:2.5px;overflow:hidden}
+.cal__items{display:flex;flex-direction:column;gap:2.5px;overflow:hidden;min-width:0}
 .cal__ev{font-size:0.675rem;padding:2.5px 6px;border-radius:5px;text-align:left;line-height:1.35;
   background:color-mix(in srgb,var(--ec) 18%,transparent);color:var(--ec);font-weight:550;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid var(--ec)}
@@ -200,6 +203,19 @@
   .cal__ev,.cal__task{font-size:0.5875rem;padding:1.5px 4px}
   .cal__num{font-size:0.6875rem;width:20px;height:20px}
 }
+/* A seventh of a phone is about forty pixels, which turns every event title
+   into "10:0…". A dot says the same thing — something is on — without
+   pretending to say more, and the day itself is what you tap to read it.
+   The titles stay in the markup for a screen reader and for the tooltip. */
+@media (max-width:640px){
+  .cal__items{flex-direction:row;flex-wrap:wrap;align-content:flex-start;gap:3px;padding:2px 0 0 2px}
+  .cal__ev,.cal__task{width:7px;height:7px;min-width:7px;flex:none;padding:0;border:0;border-radius:50%;
+    font-size:0;line-height:0;overflow:hidden;pointer-events:none;color:transparent}
+  .cal__ev{background:var(--ec)}
+  .cal__task{background:var(--text-3)}
+  .cal__task .ic{display:none}
+  .cal__more{font-size:0.56rem;padding-left:2px;line-height:1}
+}
 
 .agenda{display:flex;flex-direction:column;gap:14px}
 .agenda__head{display:flex;align-items:center;gap:13px;padding:14px 18px;border-bottom:1px solid var(--line)}
@@ -212,7 +228,7 @@
 .agenda__date span{font-size:0.6rem;font-weight:650;letter-spacing:.07em;text-transform:uppercase;opacity:.75}
 
 /* ─── Notes ─── */
-.notes{display:grid;grid-template-columns:282px 1fr;gap:16px;align-items:start;
+.notes{display:grid;grid-template-columns:282px minmax(0,1fr);gap:16px;align-items:start;
   height:calc(100vh - var(--topbar-h) - 150px);min-height:460px}
 .notes__side{display:flex;flex-direction:column;gap:11px;height:100%;min-height:0}
 .notes__search{position:relative;display:flex;align-items:center}
@@ -241,15 +257,20 @@
 .note-tool{min-width:29px;height:27px;padding:0 7px;border-radius:7px;font-size:0.75rem;font-weight:650;
   color:var(--text-2);transition:all var(--t-fast)}
 .note-tool:hover{background:var(--active);color:var(--text)}
-.note-split{display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0}
+.note-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);flex:1;min-height:0}
 .note-body{padding:18px;resize:none;font-size:0.8375rem;line-height:1.75;border:0;border-right:1px solid var(--line);
   background:none;overflow-y:auto;min-height:0;tab-size:2}
 .note-preview{padding:18px;overflow-y:auto;min-height:0}
 @media (max-width:1000px){
-  .notes{grid-template-columns:1fr;height:auto;min-height:0}
+  /* A grid track of 1fr is really minmax(auto,1fr), so a column grows to fit
+     its widest content instead of the screen. That is what pushed the note
+     editor, its toolbar and the search field off the right of the phone. */
+  .notes{grid-template-columns:minmax(0,1fr);height:auto;min-height:0}
+  .notes__side,.notes__main{min-width:0}
   .notes__side{height:auto;max-height:340px}
   .notes__main{height:auto;min-height:520px}
-  .note-split{grid-template-columns:1fr;grid-template-rows:260px 1fr}
+  .note-split{grid-template-columns:minmax(0,1fr);grid-template-rows:260px 1fr}
+  .note-body,.note-preview{min-width:0}
   .note-body{border-right:0;border-bottom:1px solid var(--line)}
 }
 
@@ -290,7 +311,7 @@
 
 /* ─── Journal ─── */
 .journal-list{display:flex;flex-direction:column;gap:14px}
-.jentry{padding:18px}
+.jentry{padding:18px;content-visibility:auto;contain-intrinsic-size:auto 250px}
 .jentry__head{display:flex;align-items:flex-start;gap:13px;margin-bottom:13px}
 .jentry__date{display:flex;flex-direction:column;align-items:center;justify-content:center;width:48px;height:48px;
   flex:none;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--line);line-height:1.15}
@@ -298,6 +319,13 @@
 .jentry__date span{font-size:0.6rem;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
 .jentry__head h3{font-size:0.9rem}
 .jentry__body{padding-left:61px;margin-bottom:12px}
+/* A month of entries at full length is a scroll with no end in sight. Long
+   ones are folded to about six lines until you ask for the rest. */
+.jentry.is-long .jentry__body{max-height:8.6em;overflow:hidden;
+  mask-image:linear-gradient(#000 62%,transparent);-webkit-mask-image:linear-gradient(#000 62%,transparent)}
+.jentry__more{margin:-4px 0 12px 61px;font-size:0.78rem;font-weight:650;color:var(--accent)}
+.jentry__more:active{opacity:.6}
+.jentry:not(.is-long) .jentry__more{display:none}
 .jentry__grat{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding-left:61px}
 .jentry__gratlabel{display:flex;align-items:center;gap:5px;font-size:0.7125rem;color:var(--text-3);font-weight:600}
 .jentry__gratlabel .ic{color:var(--bad)}
@@ -717,8 +745,11 @@
   .hero__date{font-size:0.6875rem;margin-bottom:4px}
   .hero__hi{font-size:1.32rem}
   .hero__sub{font-size:0.8125rem;margin-top:5px}
-  .hero__actions{margin-top:13px;gap:7px}
-  .hero__actions .btn{flex:1 1 auto;min-width:0;padding:0 11px;font-size:0.8rem}
+  /* Three across, always. Wrapping left "Edit journal" alone on a line of
+     its own, which made the hero a row taller for no reason. */
+  .hero__actions{margin-top:13px;gap:7px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex-wrap:nowrap}
+  .hero__actions .btn{min-width:0;padding:0 6px;font-size:0.76rem;gap:5px;overflow:hidden}
+  .hero__actions .btn .ic{width:15px;height:15px}
   .hero__score{flex:none;gap:4px}
   .hero__score .ring--lg svg{width:72px;height:72px}
   .ring--lg .ring__txt--lg{font-size:1.125rem}
@@ -727,8 +758,8 @@
 
   /* two tiles per row, not one — the default min width missed by 2px */
   .grid--stat{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  .stat{padding:13px}
-  .stat__value{font-size:1.3125rem}
+  .stat{padding:12px 12px 13px}
+  .stat__value{font-size:1.38rem}
   .stat__value small{font-size:0.6875rem}
   .stat__label{font-size:0.6625rem}
   .stat__sub{font-size:0.6875rem}
@@ -785,8 +816,15 @@
   .periodgrid__head,.periodrow{grid-template-columns:38px 1fr 1fr 32px;gap:6px}
   .periodrow .input{padding:7px 6px;font-size:0.775rem}
 }
-.localnote h3{font-size:0.9125rem}
-@media (max-width:640px){ .localnote .stat__icon{display:none} }
+/* One line, dismissible, out of the way of the day. */
+.localnote{display:flex;align-items:center;gap:9px;padding:8px 9px 8px 12px;
+  border:1px solid var(--accent-line);border-radius:var(--r-sm);
+  background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.localnote__ic{color:var(--accent);display:grid;place-items:center;flex:none}
+.localnote__txt{flex:1;min-width:0;font-size:0.8rem;color:var(--text-2);line-height:1.4}
+.localnote__link{color:var(--accent);font-weight:650;text-decoration:underline;
+  text-underline-offset:2px;font-size:inherit}
+.localnote__link:active{opacity:.6}
 
 /* ─── Sign in / register ─── */
 .auth{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 2px 2px}
@@ -869,10 +907,13 @@
    is fine to look at and far too small to hit reliably; it is also the
    control this app is tapped on more than any other. */
 @media (pointer: coarse) {
-  .task__check, .note-tool, .seg button, .icon-btn--sm, .chip-btn { position: relative; }
+  .task__check, .note-tool, .seg button, .icon-btn--sm, .chip-btn,
+  button.chip, .localnote__link { position: relative; }
 
   .task__check::after,
   .icon-btn--sm::after,
+  button.chip::after,
+  .localnote__link::after,
   .chip-btn::after {
     content: ''; position: absolute; top: 50%; left: 50%;
     width: 42px; height: 42px; transform: translate(-50%, -50%);
@@ -884,6 +925,14 @@
     content: ''; position: absolute; left: 0; right: 0; top: 50%;
     height: 42px; transform: translateY(-50%);
   }
+  /* A chip filter row is tapped as often as a tab bar; the overlay must not
+     be wider than the gap between chips, or the wrong filter answers. */
+  button.chip::after { width: 100%; height: 38px; }
+  /* Three events stacked in one day cell: the overlay may only take the gap
+     between them, or a tap would open the wrong one. */
+  .cal__ev { position: relative; }
+  .cal__ev::after { content: ''; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+  .note-title { min-height: 34px; }
 }
 .ah__steps em{display:block; margin-top:5px; font-style:normal; font-size:0.75rem;
   line-height:1.55; color:var(--text-3)}
@@ -893,6 +942,7 @@
   color:var(--text-3)}
 .pace__big{font-size:1.875rem;font-weight:750;letter-spacing:-.035em;margin-top:3px;line-height:1.1}
 .pace__proj{font-size:0.9375rem;font-weight:650;margin-top:5px;font-variant-numeric:tabular-nums}
+.pace__proj--done{color:var(--text-3);font-weight:550;font-size:0.85rem}
 .pace__track{position:relative;height:9px;border-radius:99px;background:var(--surface-3)}
 .pace__spent{position:absolute;inset:0 auto 0 0;border-radius:99px;
   background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width var(--t-slow)}
@@ -936,6 +986,7 @@
 /* One line that scrolls rather than two that push the page down. The row
    is short and the categories are ordered by how often they get used, so
    what you want is almost always already visible. */
+/* .scroller shares the segmented control's overflow shade — see components.css. */
 .quickcats{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
   padding-bottom:2px;margin:0 -16px;padding-inline:16px}
 .quickcats::-webkit-scrollbar{display:none}
@@ -970,3 +1021,6 @@
 .ministat.is-bad .ministat__value{color:var(--bad)}
 .ministat.is-warn .ministat__value{color:var(--warn)}
 @media (max-width:380px){ .ministat{padding:11px 9px} .ministat__value{font-size:1rem} }
+
+/* The link icon is a label for the block, not for the middle of it. */
+@media (max-width:640px){ .bridge > .row > .stat__icon{align-self:flex-start;margin-top:2px} }

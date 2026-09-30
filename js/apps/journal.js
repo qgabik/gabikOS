@@ -100,7 +100,8 @@ registerView('journal', {
 
     const list = `<div class="journal-list">${entries.slice(0, 40).map(e => {
       const m = moodOf(e.mood);
-      return `<article class="jentry card" data-jentry="${e.id}">
+      const long = (e.text || '').length > 420;
+      return `<article class="jentry card ${long ? 'is-long' : ''}" data-jentry="${e.id}">
         <header class="jentry__head">
           <div class="jentry__date">
             <strong>${parseISO(e.date).getDate()}</strong>
@@ -116,7 +117,8 @@ registerView('journal', {
           </div>
           <button class="icon-btn icon-btn--sm" data-jmenu="${e.id}">${icon('more')}</button>
         </header>
-        ${e.text ? `<div class="jentry__body md">${markdown(e.text)}</div>` : ''}
+        ${e.text ? `<div class="jentry__body md">${markdown(e.text)}</div>
+          ${long ? `<button class="jentry__more" data-jopen="${e.id}">Read the rest</button>` : ''}` : ''}
         ${(e.gratitude || []).length ? `<div class="jentry__grat">
           <span class="jentry__gratlabel">${icon('heart', 'ic ic--sm')}Grateful for</span>
           ${(e.gratitude || []).map(g => `<span class="chip chip--ok">${esc(g)}</span>`).join('')}
@@ -129,6 +131,11 @@ registerView('journal', {
 
   onMount(root) {
     on(root, 'click', '[data-write]', () => writeEntry());
+    on(root, 'click', '[data-jopen]', (e, el) => {
+      const art = el.closest('.jentry');
+      art.classList.remove('is-long');
+      el.remove();
+    });
     on(root, 'click', '[data-jmenu]', (e, el) => {
       const id = el.dataset.jmenu, entry = store.find('journal', id);
       contextMenu(e, [

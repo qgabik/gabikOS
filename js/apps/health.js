@@ -343,17 +343,24 @@ const series = (key, days = 30) => {
 
 /* ═══ Bits of chrome ══════════════════════════════════════════ */
 
-const ring = (value, goal, color, label, sub) => {
+/**
+ * A ring already shows the percentage — that is what the arc is. Printing it
+ * again in the middle, in the largest type on the screen, put the one number
+ * nobody came for at the top of the hierarchy and left "8,019 steps" as grey
+ * caption text. The figure goes in the middle now.
+ */
+const ring = (value, goal, color, label, sub, display) => {
   const p = pct(value || 0, goal || 1);
   const c = 2 * Math.PI * 34;
+  const mid = display ?? (value == null ? '—' : String(value));
   return `<div class="hring">
     <div class="ring">
-      <svg viewBox="0 0 80 80" width="80" height="80">
+      <svg viewBox="0 0 80 80" width="80" height="80" aria-hidden="true">
         <circle class="ring__bg" cx="40" cy="40" r="34" stroke-width="8"/>
         <circle class="ring__fg" cx="40" cy="40" r="34" stroke-width="8" style="stroke:${esc(color)}"
           stroke-dasharray="${round(c, 1)}" stroke-dashoffset="${round(c - (c * p) / 100, 1)}"/>
       </svg>
-      <div class="ring__txt" style="font-size:0.8125rem">${p}<small style="font-size:0.5625rem">%</small></div>
+      <div class="ring__txt ring__txt--val ${String(mid).length > 4 ? 'is-long' : ''}">${esc(mid)}</div>
     </div>
     <div class="hring__meta">
       <strong>${label}</strong>
@@ -361,6 +368,10 @@ const ring = (value, goal, color, label, sub) => {
     </div>
   </div>`;
 };
+
+/** 8019 → "8k", 950 → "950". Small enough to sit inside a ring. */
+const ringNum = n => (n == null ? '—' : n >= 10000 ? Math.round(n / 1000) + 'k'
+  : n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(Math.round(n)));
 
 /** The one-line truth about where today's steps and sleep came from. */
 function bridgeStrip() {
@@ -767,7 +778,7 @@ registerView('health', {
               ${src('sleepMins')}
             </div>
           </div>
-          <div class="row gap-2 row--wrap">
+          <div class="btn-pair">
             <button class="btn" data-bed>${icon('moon')}Going to bed</button>
             <button class="btn" data-wake>${icon('sun')}Just woke up</button>
             <button class="btn btn--ghost" data-night>${icon('edit')}Edit</button>
@@ -884,26 +895,29 @@ registerView('health', {
         ${ring(m.steps, g.steps, '#3ecf8e', 'Steps', m.steps != null
           ? `${Number(m.steps).toLocaleString()} of ${Number(g.steps).toLocaleString()}${
               stepsReadAt(m) ? ` · read ${relTime(stepsReadAt(m))}` : ''}`
-          : 'nothing yet today')}
-        ${ring(mins, goalMins, '#a78bfa', 'Sleep', mins != null ? `${fmtSleep(mins)} of ${g.sleep}h` : 'log last night')}
-        ${ring(m.water, g.water, '#4cc4f0', 'Water', `${m.water || 0} of ${g.water} glasses`)}
-        ${ring(move, 30, '#ffb45c', 'Move', move ? `${fmtMins(move)} active` : 'no movement logged')}
+          : 'nothing yet today', ringNum(m.steps))}
+        ${ring(mins, goalMins, '#a78bfa', 'Sleep', mins != null ? `${fmtSleep(mins)} of ${g.sleep}h` : 'log last night',
+          mins != null ? `${Math.floor(mins / 60)}h${pad2(mins % 60)}` : '—')}
+        ${ring(m.water, g.water, '#4cc4f0', 'Water', `${m.water || 0} of ${g.water} glasses`,
+          `${m.water || 0}/${g.water}`)}
+        ${ring(move, 30, '#ffb45c', 'Move', move ? `${fmtMins(move)} active` : 'no movement logged',
+          move ? `${move}m` : '—')}
       </div>
     </div>
 
     <div class="grid grid--2 mb-6">
       <div class="card"><div class="card__head">${icon('bed')}<h3>Sleep</h3>
-        ${mins != null ? `<span class="chip ${mins >= goalMins ? 'chip--ok' : 'chip--warn'}">${fmtSleep(mins)}</span>` : ''}</div>
+        ${mins != null ? `<span class="chip ${mins >= goalMins ? 'chip--ok' : 'chip--warn'}">${fmtSleep(mins)}</span>` : ''}
+        <button class="btn btn--sm btn--ghost" data-tab="sleep">All nights</button></div>
         <div class="card__body">
-          <div class="night__times mb-3">
+          ${m.bedtime || m.wake ? `<div class="night__times mb-3">
             <span>${icon('moon', 'ic ic--sm')} ${clockLabel(m.bedtime)}</span>
             <i>→</i>
             <span>${icon('sun', 'ic ic--sm')} ${clockLabel(m.wake)}</span>
-          </div>
-          <div class="row gap-2 row--wrap">
+          </div>` : `<p class="dim mb-3" style="font-size:0.8rem">Last night is not logged yet.</p>`}
+          <div class="btn-pair">
             <button class="btn btn--sm" data-bed>${icon('moon')}Going to bed</button>
             <button class="btn btn--sm" data-wake>${icon('sun')}Just woke up</button>
-            <button class="btn btn--sm btn--ghost" data-tab="sleep">All nights</button>
           </div>
         </div></div>
 

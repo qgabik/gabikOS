@@ -62,22 +62,15 @@ registerView('dashboard', {
 
     /* A copy with nowhere to sign you in cannot sync, and the difference is
        invisible until your two devices disagree — so say it plainly, once. */
+    /* This used to be a card with a heading, a paragraph and three buttons —
+       460 pixels, the whole first screen of a phone, before the greeting. It
+       is worth saying once; it is not worth saying at that size every day. */
     const localNotice = (!sync.enabled && sync.status === 'local' && !settings().hideLocalNotice) ? `
-      <div class="card card--pad mb-4 callout localnote">
-        <div class="row gap-3 row--wrap">
-          <span class="stat__icon">${icon('lock')}</span>
-          <div class="grow" style="min-width:200px">
-            <h3>This copy saves only on this device</h3>
-            <p class="dim mt-2" style="font-size:0.8125rem">What you write here stays in this browser, and
-              another device starts empty. Sign in and GabikOS follows you everywhere — it takes a few
-              seconds and the top bar will read <strong>Synced</strong>.</p>
-            <div class="row gap-2 mt-3 row--wrap">
-              <button class="btn btn--primary btn--sm" data-signin>${icon('user')}Sign in or register</button>
-              <button class="btn btn--sm btn--ghost" data-go-data>${icon('download')}Export instead</button>
-              <button class="btn btn--sm btn--ghost" data-hide-notice>Got it</button>
-            </div>
-          </div>
-        </div>
+      <div class="localnote mb-4">
+        <span class="localnote__ic">${icon('lock', 'ic ic--sm')}</span>
+        <p class="localnote__txt">Saved on this device only —
+          <button class="localnote__link" data-signin>sign in to sync</button></p>
+        <button class="icon-btn icon-btn--sm" data-hide-notice aria-label="Dismiss">${icon('x', 'ic ic--sm')}</button>
       </div>` : '';
 
     const hero = `
@@ -94,9 +87,9 @@ registerView('dashboard', {
           return 'Everything on your plate is handled. Enjoy the room to breathe.';
         })()}</p>
         <div class="hero__actions">
-          <button class="btn btn--primary" data-d="task">${icon('plus')}Add task</button>
-          <button class="btn" data-d="focus">${icon('timer')}Start focus</button>
-          <button class="btn" data-d="journal">${icon('journal')}${hasEntryToday() ? 'Edit journal' : 'Journal today'}</button>
+          <button class="btn btn--primary" data-d="task">${icon('plus')}<span class="wide-only">Add task</span><span class="narrow-only">Task</span></button>
+          <button class="btn" data-d="focus">${icon('timer')}<span class="wide-only">Start focus</span><span class="narrow-only">Focus</span></button>
+          <button class="btn" data-d="journal">${icon('journal')}<span class="wide-only">${hasEntryToday() ? 'Edit journal' : 'Journal today'}</span><span class="narrow-only">Journal</span></button>
         </div>
       </div>
       <div class="hero__score">
@@ -113,13 +106,24 @@ registerView('dashboard', {
       </div>
     </section>`;
 
+    /* Each tile carries the shape of its goal, not just the number, and opens
+       the screen it summarises — which is what people tap them expecting. */
+    const taskTotal = taskDoneToday + tasksToday.length;
     const stats = `<div class="grid grid--stat mb-6">
-      ${statTile({ label: 'Tasks today', value: `${taskDoneToday}<small>/${taskDoneToday + tasksToday.length}</small>`,
-        sub: late.length ? `${late.length} overdue` : 'on track', icon: 'checkSquare', tone: late.length ? 'bad' : 'ok' })}
+      ${statTile({ label: 'Tasks today', value: `${taskDoneToday}<small>/${taskTotal}</small>`,
+        sub: late.length ? `${late.length} overdue` : taskTotal ? 'on track' : 'nothing due',
+        icon: 'checkSquare', tone: late.length ? 'bad' : 'ok',
+        meter: pct(taskDoneToday, taskTotal), go: 'tasks' })}
       ${statTile({ label: 'Habits', value: `${habitsDone.length}<small>/${habitsDue.length}</small>`,
-        sub: `${pct(habitsDone.length, habitsDue.length)}% of today`, icon: 'flame', tone: habitsDone.length === habitsDue.length && habitsDue.length ? 'ok' : 'warn' })}
-      ${statTile({ label: 'Focused', value: fmtMins(fMin), sub: `goal ${fmtMins(g.focusMins)}`, icon: 'timer', tone: fMin >= g.focusMins ? 'ok' : 'info' })}
-      ${statTile({ label: 'Water', value: `${m.water || 0}<small>/${g.water}</small>`, sub: 'glasses today', icon: 'droplet', tone: (m.water || 0) >= g.water ? 'ok' : '' })}
+        sub: `${pct(habitsDone.length, habitsDue.length)}% of today`, icon: 'flame',
+        tone: habitsDone.length === habitsDue.length && habitsDue.length ? 'ok' : 'warn',
+        meter: pct(habitsDone.length, habitsDue.length), go: 'habits' })}
+      ${statTile({ label: 'Focused', value: fmtMins(fMin), sub: `goal ${fmtMins(g.focusMins)}`,
+        icon: 'timer', tone: fMin >= g.focusMins ? 'ok' : 'info',
+        meter: pct(fMin, g.focusMins), go: 'focus' })}
+      ${statTile({ label: 'Water', value: `${m.water || 0}<small>/${g.water}</small>`, sub: 'glasses today',
+        icon: 'droplet', tone: (m.water || 0) >= g.water ? 'ok' : '',
+        meter: pct(m.water || 0, g.water), go: 'health' })}
     </div>`;
 
     /* ── today's tasks ── */
