@@ -1,11 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
    GabikOS — command palette: navigate, search and act from anywhere
    ═══════════════════════════════════════════════════════════════ */
-import { store, S } from './store.js';
-import { navigate, navViews, allViews, currentView } from './router.js';
+import { S } from './store.js';
+import { navigate, navViews } from './router.js';
 import { icon } from './icons.js';
-import { qs, qsa, toast, modal } from './ui.js';
-import { esc, fuzzy, truncate, fmtDate, by } from './util.js';
+import { qs } from './ui.js';
+import { esc, fuzzy, truncate, fmtDate } from './util.js';
 import { excerpt } from './markdown.js';
 
 let selected = 0;

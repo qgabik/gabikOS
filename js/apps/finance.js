@@ -1,12 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
    GabikOS — Money: income, expenses, budgets, trends
    ═══════════════════════════════════════════════════════════════ */
-import { store, S, settings } from '../core/store.js';
+import { store, S } from '../core/store.js';
 import { registerView, navigate, render, params } from '../core/router.js';
 import { icon } from '../core/icons.js';
-import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
-import { esc, today, iso, monthKey, monthName, parseISO, fmtMoney, sum, by, pct, plural,
-         addDaysISO, fmtDate, round, groupBy } from '../core/util.js';
+import { openForm, confirmDialog, toast, on, emptyState, pageHead } from '../core/ui.js';
+import { esc, today, monthKey, monthName, parseISO, sum, by, pct, plural, fmtDate, round, groupBy } from '../core/util.js';
 import { donut, legend, groupedBars, seriesColor } from '../core/charts.js';
 
 import { CATEGORIES, money, currency as cur, txOfMonth, monthIncome, monthExpense, monthNet } from '../core/data.js';

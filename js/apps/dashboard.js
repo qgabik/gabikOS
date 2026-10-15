@@ -4,16 +4,13 @@
 import { store, S, settings, profile } from '../core/store.js';
 import { registerView, navigate, render } from '../core/router.js';
 import { icon } from '../core/icons.js';
-import { on, emptyState, statTile, toast, openForm } from '../core/ui.js';
-import { esc, today, greeting, fmtDate, fmtMins, dayName, monthName, parseISO, pct, plural,
-         relTime, sum, by, diffDays, addDaysISO, fmtMoney } from '../core/util.js';
+import { on, emptyState, statTile } from '../core/ui.js';
+import { esc, today, greeting, fmtDate, fmtMins, dayName, monthName, pct, plural, relTime } from '../core/util.js';
 import { taskRow } from '../core/rows.js';
-import { dueToday, overdue, openTasks, dueTodayHabits, doneToday, logFor, bumpHabit, streak,
-         isScheduled, upcoming, catOf, focusToday, hasEntryToday, moodOf, entryFor,
-         activeGoals, goalProgress, metricFor, addWater, monthNet, monthExpense, money,
-         currentAndNext, todayLessons, subjectOf, parityLabel, weekParity } from '../core/data.js';
+import { dueToday, overdue, openTasks, dueTodayHabits, doneToday, logFor, bumpHabit, streak, upcoming,
+         catOf, focusToday, hasEntryToday, moodOf, entryFor, activeGoals, goalProgress, metricFor,
+         monthNet, monthExpense, money, currentAndNext, subjectOf } from '../core/data.js';
 import { run } from '../core/views.js';
-import { sparkline } from '../core/charts.js';
 import { sync } from '../core/sync.js';
 
 const QUOTES = [
@@ -46,10 +43,6 @@ registerView('dashboard', {
     const fMin = focusToday();
     const quote = QUOTES[now.getDate() % QUOTES.length];
 
-    /* the one number that matters: how much of today is handled */
-    const parts = [
-      { done: tasksToday.filter(x => x.done).length + S().tasks.filter(x => x.done && x.completedAt && new Date(x.completedAt).toDateString() === now.toDateString()).length, total: Math.max(tasksToday.length, 1) },
-    ];
     const taskDoneToday = S().tasks.filter(x => x.done && x.completedAt && new Date(x.completedAt).toDateString() === now.toDateString()).length;
     const dayScore = (() => {
       const buckets = [];

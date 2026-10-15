@@ -2,12 +2,12 @@
    GabikOS — Settings: identity, appearance, goals, data
    ═══════════════════════════════════════════════════════════════ */
 import { store, S, settings, profile, seedStarter, barTabs, DEFAULT_TABS } from '../core/store.js';
-import { registerView, navigate, render, params, allViews, navViews } from '../core/router.js';
+import { registerView, navigate, render, allViews, navViews } from '../core/router.js';
 import { icon } from '../core/icons.js';
-import { openForm, confirmDialog, toast, on, pageHead, statTile, qs, qsa } from '../core/ui.js';
-import { esc, download, pickFile, plural, initials, fmtDate, today, cap, relTime } from '../core/util.js';
+import { confirmDialog, toast, on, pageHead, statTile, qsa } from '../core/ui.js';
+import { esc, download, pickFile, plural, initials, today, cap, relTime } from '../core/util.js';
 import { applyTheme, setTheme, ACCENTS, THEMES, themeById } from '../core/theme.js';
-import { sync, syncNow, syncLabel, onSyncChange } from '../core/sync.js';
+import { sync, syncLabel } from '../core/sync.js';
 import { accountCard } from './account.js';
 import { BUILD } from '../config.js';
 

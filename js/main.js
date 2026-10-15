@@ -5,7 +5,7 @@ import { store, S, settings, profile, seedStarter, barTabs } from './core/store.
 import { startRouter, render, navigate, navViews, currentView, onRender } from './core/router.js';
 import { applyTheme, toggleTheme, watchSystemTheme, hueFor } from './core/theme.js';
 import { icon } from './core/icons.js';
-import { qs, qsa, on, toast, openForm, modal, confirmDialog, closeMenu, markOverflow } from './core/ui.js';
+import { qs, on, toast, modal, closeMenu, markOverflow } from './core/ui.js';
 import { initPalette, openPalette, closePalette, isOpen as paletteOpen, setCommands } from './core/palette.js';
 import { initSync, sync, syncLabel, onSyncChange, syncNow, flush } from './core/sync.js';
 import { hasStoredSession, hasSessionInUrl, canUseSupabase } from './core/supabase.js';
@@ -19,7 +19,7 @@ import { linkKnownHabits } from './core/data.js';
    land on; `run()` fetches any other screen's module for an action that
    needs it — creating a task, writing a journal entry — without opening
    that screen first. */
-import { registerScreens, registerCollections, run, loadApp } from './core/views.js';
+import { registerScreens, registerCollections, run } from './core/views.js';
 import './apps/dashboard.js';
 
 /* ─── Sidebar ─── */

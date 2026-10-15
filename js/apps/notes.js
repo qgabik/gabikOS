@@ -5,7 +5,7 @@ import { store, S } from '../core/store.js';
 import { registerView, navigate, render, params } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { confirmDialog, toast, on, emptyState, pageHead, contextMenu, openForm, qs } from '../core/ui.js';
-import { esc, uid, relTime, by, unique, debounce, truncate, plural } from '../core/util.js';
+import { esc, relTime, by, unique, debounce, plural } from '../core/util.js';
 import { markdown, excerpt, wordCount } from '../core/markdown.js';
 
 export const noteCount = () => S().notes.length;

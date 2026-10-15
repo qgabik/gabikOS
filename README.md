@@ -278,9 +278,18 @@ js/
     ics.js              iCalendar reader for school timetable exports
     util.js             dates, formatting, fuzzy matching, helpers
   apps/                 one file per module, each registers its own view
+eslint.config.mjs       no-undef, mostly — the one check a zero-build app cannot do for itself
 tools/
   check-config.mjs      fails the build on a deploy file its host would reject
   check-layout.mjs      every screen at 393px and 320px, and every control under a thumb
+```
+
+Three checks worth running before pushing:
+
+```
+node tools/check-config.mjs     # the deploy files, shaped the way their hosts expect
+npx eslint js sw.js tools       # undefined names, dead code — no build step means nothing else looks
+node tools/check-layout.mjs     # every screen at 393px and 320px, every control under a thumb
 ```
 
 Adding a module is one file — call `registerView()` with a `render()` that returns HTML and an

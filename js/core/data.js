@@ -290,7 +290,8 @@ export const lessons = () => S().lessons || [];
 export const subjectOf = id => subjects().find(s => s.id === id);
 
 export const clockToMins = t => { const [h, m] = String(t || '0:0').split(':').map(Number); return h * 60 + m; };
-const nowMins = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+/** Minutes since midnight, right now. */
+export const nowMins = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
 /** Lessons for a weekday, in period order, respecting week parity. */
 export function lessonsOn(day, parity = weekParity()) {

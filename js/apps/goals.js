@@ -5,7 +5,7 @@ import { store, S } from '../core/store.js';
 import { registerView, render } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
-import { esc, uid, pct, fmtDate, diffDays, today, plural, clamp, by } from '../core/util.js';
+import { esc, uid, diffDays, today, plural, clamp, by } from '../core/util.js';
 
 import { activeGoals, goalProgress } from '../core/data.js';
 export { activeGoals, goalProgress };

@@ -3,10 +3,10 @@
    The timer lives outside the render cycle so it survives navigation.
    ═══════════════════════════════════════════════════════════════ */
 import { store, S, settings } from '../core/store.js';
-import { registerView, render, navigate, params, currentView } from '../core/router.js';
+import { registerView, render, navigate, currentView } from '../core/router.js';
 import { icon } from '../core/icons.js';
-import { openForm, toast, on, emptyState, pageHead, statTile, qs, confirmDialog } from '../core/ui.js';
-import { esc, today, addDaysISO, fmtDuration, fmtMins, sum, by, plural, dayName, pct, round } from '../core/util.js';
+import { openForm, toast, on, emptyState, pageHead, statTile, qs } from '../core/ui.js';
+import { esc, today, addDaysISO, fmtDuration, fmtMins, sum, by, plural, dayName, pct } from '../core/util.js';
 import { barChart } from '../core/charts.js';
 
 const RING = 119.4; // 2πr for r=19

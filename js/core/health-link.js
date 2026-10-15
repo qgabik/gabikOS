@@ -19,7 +19,7 @@
    ═══════════════════════════════════════════════════════════════ */
 import { getSupabase, getSession, canUseSupabase } from './supabase.js';
 import { supabaseConfig } from '../config.js';
-import { today, addDaysISO, clamp, round, clockMins, minutesBetween } from './util.js';
+import { today, addDaysISO, clamp, round, minutesBetween } from './util.js';
 
 export const KEY_TABLE = 'gabikos_health_keys';
 export const INBOX_TABLE = 'gabikos_health_inbox';

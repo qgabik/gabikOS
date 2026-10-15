@@ -4,11 +4,10 @@
    table, cards, filters, stats and CRUD — no code required.
    ═══════════════════════════════════════════════════════════════ */
 import { store, S, settings } from '../core/store.js';
-import { registerView, unregisterView, navigate, render, params, currentView } from '../core/router.js';
-import { icon, PICKABLE } from '../core/icons.js';
+import { registerView, unregisterView, navigate, render, params } from '../core/router.js';
+import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile, modal, qs } from '../core/ui.js';
-import { esc, uid, today, fmtDate, fmtMoney, by, sum, avg, round, plural, truncate, slug, download } from '../core/util.js';
-import { barChart, donut, legend } from '../core/charts.js';
+import { esc, uid, fmtDate, fmtMoney, by, sum, avg, round, plural, truncate, slug, download } from '../core/util.js';
 import { useBuilderRegistrar } from '../core/views.js';
 
 /* ─── Field types ─── */
@@ -67,7 +66,6 @@ export const TEMPLATES = [
 
 /* ─── Helpers ─── */
 export const recordsOf = cid => S().records?.[cid] || [];
-const fieldKey = f => f.id;
 const titleField = c => c.fields.find(f => f.type === 'text') || c.fields[0];
 
 export function collectionViewId(c) { return `c_${c.id}`; }

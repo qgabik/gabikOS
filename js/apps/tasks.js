@@ -5,7 +5,7 @@ import { store, S } from '../core/store.js';
 import { registerView, navigate, render, params, refreshIf } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, qs, qsa } from '../core/ui.js';
-import { esc, today, iso, fmtDate, isPast, isToday, diffDays, by, uid, plural, addDaysISO } from '../core/util.js';
+import { esc, today, fmtDate, isPast, diffDays, by, plural, addDaysISO } from '../core/util.js';
 
 import { PRIORITIES, prio, taskRow } from '../core/rows.js';
 export { PRIORITIES, prio, taskRow };

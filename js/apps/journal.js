@@ -2,11 +2,11 @@
    GabikOS — Journal: daily entries, mood, gratitude
    ═══════════════════════════════════════════════════════════════ */
 import { store, S } from '../core/store.js';
-import { registerView, navigate, render, params } from '../core/router.js';
+import { registerView, render } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, statTile, contextMenu } from '../core/ui.js';
 import { esc, today, addDaysISO, fmtDate, by, avg, round, plural, diffDays, parseISO, dayName } from '../core/util.js';
-import { markdown, excerpt, wordCount } from '../core/markdown.js';
+import { markdown, wordCount } from '../core/markdown.js';
 import { lineChart, heatmap } from '../core/charts.js';
 
 import { MOODS, moodOf, entryFor, hasEntryToday } from '../core/data.js';

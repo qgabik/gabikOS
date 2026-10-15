@@ -1,14 +1,13 @@
 /* ═══════════════════════════════════════════════════════════════
    GabikOS — account: register, sign in, session
    ═══════════════════════════════════════════════════════════════ */
-import { store, S } from '../core/store.js';
 import { render } from '../core/router.js';
 import { icon } from '../core/icons.js';
-import { modal, toast, qs, confirmDialog, on } from '../core/ui.js';
+import { modal, toast, confirmDialog, on } from '../core/ui.js';
 import { esc } from '../core/util.js';
 import { signIn, signUp, signOut, resetPassword, onAuthChange, authMessage, canUseSupabase, resetSupabase, hasStoredSession, hasSessionInUrl, getSupabase }
   from '../core/supabase.js';
-import { supabaseConfig, setSupabaseConfig, DEFAULT_SUPABASE } from '../config.js';
+import { supabaseConfig, setSupabaseConfig } from '../config.js';
 import { sync, initSync, forgetAccount, syncNow } from '../core/sync.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;

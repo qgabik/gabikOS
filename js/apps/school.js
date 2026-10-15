@@ -5,15 +5,16 @@
    periods, alternating odd/even weeks, subject abbreviations.
    Fills from an .ics export, from pasted text, or by hand.
    ═══════════════════════════════════════════════════════════════ */
-import { store, S, settings } from '../core/store.js';
+import { store } from '../core/store.js';
 import { registerView, navigate, render, params } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile, modal, qs } from '../core/ui.js';
-import { esc, uid, today, iso, parseISO, dayName, plural, by, colorFor, pickFile, truncate, fmtMins, isoWeek } from '../core/util.js';
+import { esc, dayName, plural, by, colorFor, pickFile, truncate, fmtMins } from '../core/util.js';
 import { parseICS, toWeeklySlots } from '../core/ics.js';
 
 import { DEFAULT_PERIODS, periods, schoolCfg, weekParity, parityLabel, subjects, lessons,
-         subjectOf, lessonsOn, todayLessons, currentAndNext, clockToMins as minutes } from '../core/data.js';
+         subjectOf, lessonsOn, todayLessons, currentAndNext, nowMins,
+         clockToMins as minutes } from '../core/data.js';
 
 /* The timetable's queries live in core/data.js, so the dashboard can name
    your next lesson without loading this screen's editor. */
@@ -711,7 +712,6 @@ function dayStripHtml(parity, cfg, p) {
   const todayNum = new Date().getDay();
   const pick = Number(p.d) || (days.some(d => d.n === todayNum) ? todayNum : days[0].n);
   const hasAB = lessons().some(l => l.week && l.week !== 'all');
-  const ps = periods();
   const list = lessonsOn(pick, parity);
 
   const shape = dayShape(pick, parity);

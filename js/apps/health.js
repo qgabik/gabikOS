@@ -10,8 +10,8 @@ import { store, S, settings } from '../core/store.js';
 import { registerView, navigate, render, refreshIf } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, statTile, modal } from '../core/ui.js';
-import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, clamp,
-         plural, dayName, parseISO, download, pickFile, relTime, clockMins, minutesBetween } from '../core/util.js';
+import { esc, today, addDaysISO, fmtDate, fmtMins, by, sum, avg, round, pct, plural, dayName,
+        parseISO, download, pickFile, relTime, clockMins, minutesBetween } from '../core/util.js';
 import { lineChart, barChart } from '../core/charts.js';
 import { metricFor, setMetric, sleepMinsOf, stepsReadAt, waterToday, addWater, derive } from '../core/data.js';
 
@@ -19,9 +19,8 @@ import { metricFor, setMetric, sleepMinsOf, stepsReadAt, waterToday, addWater, d
    dashboard's Water tile does not have to load this whole screen. */
 export { metricFor, setMetric, sleepMinsOf, stepsReadAt, waterToday, addWater };
 import { BUILD } from '../config.js';
-import { readLink, stripLink, normalizeSample,
-         healthKey, pullInbox, cloudReady, cloudRecipe, linkTemplate,
-         parseAppleExport, parsePasted, diagnose, simpleLink, cloudPing, clearInbox } from '../core/health-link.js';
+import { readLink, stripLink, normalizeSample, healthKey, pullInbox, cloudReady, cloudRecipe,
+        parseAppleExport, parsePasted, diagnose, simpleLink, cloudPing, clearInbox } from '../core/health-link.js';
 
 /* ─── Small formatters ─── */
 const pad2 = n => String(n).padStart(2, '0');

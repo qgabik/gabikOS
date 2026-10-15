@@ -2,10 +2,10 @@
    GabikOS — Habits: streaks, heatmap, per-day progress
    ═══════════════════════════════════════════════════════════════ */
 import { store, S } from '../core/store.js';
-import { registerView, render, navigate, params } from '../core/router.js';
+import { registerView, render, navigate } from '../core/router.js';
 import { icon } from '../core/icons.js';
 import { openForm, confirmDialog, toast, on, emptyState, pageHead, contextMenu, statTile } from '../core/ui.js';
-import { esc, today, iso, addDaysISO, diffDays, pct, clamp, plural, dayName, parseISO, round, uid } from '../core/util.js';
+import { esc, today, addDaysISO, pct, plural, dayName, parseISO } from '../core/util.js';
 import { heatmap } from '../core/charts.js';
 import { METRIC_LINKS, logFor, isScheduled, setLog, adoptHistory, bumpHabit,
          streak, bestStreak, rate, doneToday, dueTodayHabits, cellsFor,
