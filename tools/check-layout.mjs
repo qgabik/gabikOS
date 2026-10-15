@@ -8,7 +8,11 @@
       and looks like missing content rather than a bug. So this
       measures every element against the viewport instead.
 
-   2. Would a thumb hit the control it is aiming at?
+   2. Does every label the app wrote fit the control holding it?
+      A label from the person's own data may be cut. One of ours being cut
+      means the box was built too small for its own words.
+
+   3. Would a thumb hit the control it is aiming at?
       Measuring an element's own box is not the answer either: small
       controls here are given a finger-sized overlay on a coarse
       pointer, which a box measurement cannot see. This asks the page
@@ -112,7 +116,32 @@ for (const size of [{ width: 393, height: 852 }, { width: 320, height: 720 }]) {
   await page.context().close();
 }
 
-/* ── 2. thumb-sized taps ── */
+/* ── 2. labels the app wrote, trimmed by the control holding them ──
+   A label from the person's own data is allowed to be cut. One of ours is a
+   box that was built too small for its own words — "Going to bed" was
+   thirteen pixels wider than the third of a row it was given. */
+for (const size of [{ width: 393, height: 852 }, { width: 360, height: 780 }, { width: 320, height: 720 }]) {
+  const page = await open(size);
+  for (const view of SCREENS) {
+    await page.evaluate(id => { location.hash = '#/' + id; }, view);
+    await page.waitForTimeout(430);
+    const cut = await page.evaluate(() => {
+      const res = [];
+      for (const el of document.querySelectorAll('#view .btn, #view .btn > span, #view .seg button, #view .tab__lbl')) {
+        if (!el.offsetWidth) continue;
+        if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible') {
+          const t = el.textContent.trim().replace(/\s+/g, ' ');
+          if (t) res.push(`"${t.slice(0, 28)}" needs ${el.scrollWidth}px, has ${el.clientWidth}px`);
+        }
+      }
+      return [...new Set(res)];
+    });
+    if (cut.length) problems.push(`${view} @${size.width}px trims its own label: ${cut.join('; ')}`);
+  }
+  await page.context().close();
+}
+
+/* ── 3. thumb-sized taps ── */
 {
   const page = await open({ width: 393, height: 852 });
   // The welcome toast sits over the first screen for six seconds. Probing
@@ -159,4 +188,4 @@ if (problems.length) {
   console.error('Layout problems:\n' + problems.map(p => '  ✗ ' + p).join('\n'));
   process.exit(1);
 }
-console.log(`✓ ${SCREENS.length} screens fit 393px and 320px, and every control takes a thumb`);
+console.log(`✓ ${SCREENS.length} screens fit 393, 360 and 320px with every label intact, and every control takes a thumb`);

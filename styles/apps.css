@@ -760,9 +760,14 @@
   .hero__hi{font-size:1.32rem}
   .hero__sub{font-size:0.8125rem;margin-top:5px}
   /* Three across, always. Wrapping left "Edit journal" alone on a line of
-     its own, which made the hero a row taller for no reason. */
-  .hero__actions{margin-top:13px;gap:7px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex-wrap:nowrap}
-  .hero__actions .btn{min-width:0;padding:0 6px;font-size:0.76rem;gap:5px;overflow:hidden}
+     its own, which made the hero a row taller for no reason.
+
+     They share the row rather than splitting it in three: equal thirds gave
+     "Journal" two pixels less than the word needs, so the longest of the
+     three was the one that got cut. Each takes what it needs and the slack
+     is divided. */
+  .hero__actions{margin-top:13px;gap:7px;display:flex;flex-wrap:nowrap}
+  .hero__actions .btn{flex:1 1 auto;min-width:auto;padding:0 8px;font-size:0.76rem;gap:5px}
   .hero__actions .btn .ic{width:15px;height:15px}
   .hero__score{flex:none;gap:4px}
   .hero__score .ring--lg svg{width:72px;height:72px}
@@ -779,6 +784,12 @@
   .stat__sub{font-size:0.6875rem}
   .stat__icon{width:26px;height:26px}
   .stat__icon .ic{width:14px;height:14px}
+
+  /* Narrower than an iPhone 13 there is no room for the icon beside the
+     word, and narrower still not for three across. The word stays; it is
+     the part that says what the button does. */
+  @media (max-width:379px){ .hero__actions .btn .ic{display:none} }
+  @media (max-width:339px){ .hero__actions{flex-wrap:wrap} .hero__actions .btn{flex:1 1 40%} }
 
   .grid{gap:12px}
   .dash{gap:12px}

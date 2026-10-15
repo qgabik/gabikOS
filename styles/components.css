@@ -352,8 +352,15 @@ button.chip:hover{background:var(--active);color:var(--text)}
 .page-skeleton .skeleton{border-radius:var(--r-md)}
 @media (prefers-reduced-motion:reduce){.skeleton{animation:none;background:var(--surface-2)}}
 
-/* A row of two or three equal actions. Left to wrap, the last one lands
-   alone on a line of its own and the card grows a row for nothing. */
-.btn-pair{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
-.btn-pair .btn{min-width:0;padding:0 8px;overflow:hidden}
-.btn-pair .btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* A row of two or three actions. Left to wrap, the last one lands alone on
+   a line of its own and the card grows a row for nothing; split into equal
+   columns, "Going to bed" is thirteen pixels wider than its third. They
+   take what they need and share what is left. */
+.btn-pair{display:flex;gap:8px}
+.btn-pair .btn{flex:1 1 auto;min-width:auto;padding:0 8px}
+@media (max-width:379px){ .btn-pair .btn .ic{display:none} }
+
+/* A sentence on a button is a sentence: let it use two lines rather than
+   lose its last word. */
+.btn--wrap{white-space:normal;height:auto;min-height:36px;padding-top:8px;padding-bottom:8px;
+  line-height:1.35;text-align:left}

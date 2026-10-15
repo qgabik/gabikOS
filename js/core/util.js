@@ -142,10 +142,18 @@ export function fmtNum(n, decimals = 0) {
   const v = Number(n) || 0;
   return v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
+/**
+ * A symbol made of letters follows the number, with a space: that is how
+ * Kč, zł, CZK and kr are written, and "Kč250.00" is not. A single sign —
+ * €, $, £, ¥ — leads, as those are written.
+ */
 export function fmtMoney(n, currency = '€', decimals = 2) {
   const v = Number(n) || 0;
   const s = Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  return `${v < 0 ? '−' : ''}${currency}${s}`;
+  const sign = v < 0 ? '−' : '';
+  return /\p{L}/u.test(currency)
+    ? `${sign}${s}\u00a0${currency}`
+    : `${sign}${currency}${s}`;
 }
 export function compactNum(n) {
   const v = Math.abs(Number(n) || 0);

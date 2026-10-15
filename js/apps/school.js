@@ -702,7 +702,7 @@ function importIntro() {
 
     <div class="row gap-2 mt-4 row--wrap" style="justify-content:center">
       <button class="btn btn--ghost btn--sm" data-periods>${icon('clock')}Set lesson times</button>
-      <button class="btn btn--ghost btn--sm" data-howto>${icon('info')}Why not connect to ŠkolaOnline directly?</button>
+      <button class="btn btn--ghost btn--sm btn--wrap" data-howto>${icon('info')}Why not connect to ŠkolaOnline directly?</button>
     </div>`;
 }
 
