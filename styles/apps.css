@@ -64,7 +64,7 @@
 .task.is-done .task__check{background:var(--ok);border-color:var(--ok)}
 .task__check--sm{width:18px;height:18px;border-radius:6px}
 .task__main{flex:1;min-width:0;text-align:left;display:flex;flex-direction:column;gap:5px}
-.task__title{font-size:0.86875rem;font-weight:520;line-height:1.45;word-break:break-word}
+.task__title{font-size:0.86875rem;font-weight:520;line-height:1.45;word-break:break-word;overflow-wrap:anywhere}
 .task.is-done .task__title{color:var(--text-3);text-decoration:line-through;text-decoration-thickness:1.5px}
 .task__meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .task__meta:empty{display:none}
@@ -73,7 +73,12 @@
 @media (hover:none){.task__actions{opacity:1}}
 
 .board{display:grid;grid-template-columns:repeat(4,minmax(232px,1fr));gap:14px;overflow-x:auto;padding-bottom:10px}
-@media (max-width:920px){.board{grid-template-columns:repeat(4,minmax(232px,1fr));width:max-content;min-width:100%}}
+/* width:max-content lets the columns size to their content, and one task
+   titled with an unbroken 1,800-character string made the board that wide.
+   A ceiling on the track, and words that may break, keep it a board. */
+@media (max-width:920px){.board{grid-template-columns:repeat(4,minmax(232px,264px));width:max-content;min-width:100%}}
+.board__col{min-width:0}
+.board__head h4{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .board__col{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md);
   display:flex;flex-direction:column;min-height:220px;transition:background var(--t-fast),border-color var(--t-fast)}
 .board__col.is-over{border-color:var(--accent);background:var(--accent-soft)}
@@ -89,7 +94,8 @@
 .tcard.is-dragging{opacity:.42;transform:rotate(1.6deg) scale(.97)}
 .tcard.is-done .tcard__title{color:var(--text-3);text-decoration:line-through}
 .tcard__top{display:flex;align-items:flex-start;gap:9px}
-.tcard__title{flex:1;text-align:left;font-size:0.825rem;font-weight:520;line-height:1.45;word-break:break-word}
+.tcard__title{flex:1;min-width:0;text-align:left;font-size:0.825rem;font-weight:520;line-height:1.45;
+  word-break:break-word;overflow-wrap:anywhere}
 .tcard__meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;padding-left:27px}
 .tcard__meta:empty{display:none}
 
@@ -242,7 +248,8 @@
 .nitem:hover{background:var(--hover)}
 .nitem.is-active{background:var(--accent-soft);border-color:var(--accent-line)}
 .nitem__top{display:flex;align-items:center;gap:6px;min-width:0}
-.nitem__top strong{font-size:0.825rem;font-weight:600}
+.nitem__top strong{font-size:0.825rem;font-weight:600;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 .nitem__pin{color:var(--accent);flex:none;display:grid}
 .nitem__ex{font-size:0.725rem;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nitem__meta{font-size:0.6625rem;color:var(--text-3);opacity:.82}

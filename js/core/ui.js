@@ -386,7 +386,12 @@ export function openForm({ title, fields = [], values = {}, submitLabel = 'Save'
 
 /* ─── Context menu ─── */
 let openMenu = null;
-export function closeMenu() { openMenu?.remove(); openMenu = null; }
+let menuScroll = null;
+export function closeMenu() {
+  if (menuScroll) { removeEventListener('scroll', menuScroll, true); menuScroll = null; }
+  openMenu?.remove();
+  openMenu = null;
+}
 export function contextMenu(ev, items = []) {
   ev.preventDefault?.();
   ev.stopPropagation?.();
@@ -412,10 +417,33 @@ export function contextMenu(ev, items = []) {
     item?.action?.();
   });
   openMenu = node;
-  setTimeout(() => {
-    document.addEventListener('click', closeMenu, { once: true });
-    document.addEventListener('scroll', closeMenu, { once: true, capture: true });
-  }, 0);
+
+  /* The menu used to close on the first scroll event of any kind. On a
+     phone that is the common case rather than the rare one: you flick a
+     list, tap "more" while it is still gliding, and the menu you asked for
+     vanishes before you can read it. The tap's own scrollIntoView did it
+     too. So it follows the row it belongs to instead, and gives up only
+     when that row has actually left the screen. */
+  const anchor = ev.currentTarget?.closest?.('button,[role=button],a') ||
+                 ev.target?.closest?.('button,[role=button],a') || null;
+  if (anchor) {
+    const onScreen = box => box.bottom > 0 && box.top < window.innerHeight;
+    const from = anchor.getBoundingClientRect();
+    const startedVisible = onScreen(from);
+    const left = Math.max(pad, x), top = Math.max(pad, y);
+    menuScroll = () => {
+      const now = anchor.getBoundingClientRect();
+      // Give up only on a row that was on screen and has since left it. A row
+      // that was never visible cannot have been tapped, so a scroll towards it
+      // must not be read as scrolling away from it.
+      if (!anchor.isConnected || (startedVisible && !onScreen(now))) { closeMenu(); return; }
+      node.style.left = Math.max(pad, Math.min(left + (now.left - from.left), window.innerWidth - r.width - pad)) + 'px';
+      node.style.top = Math.max(pad, Math.min(top + (now.top - from.top), window.innerHeight - r.height - pad)) + 'px';
+    };
+    addEventListener('scroll', menuScroll, { capture: true, passive: true });
+  }
+
+  setTimeout(() => { document.addEventListener('click', closeMenu, { once: true }); }, 0);
 }
 
 /* ─── Small shared renderers ─── */

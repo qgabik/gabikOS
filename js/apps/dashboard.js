@@ -257,11 +257,17 @@ registerView('dashboard', {
     const activityCard = `<div class="card">
       <div class="card__head">${icon('activity')}<h3>Recent activity</h3></div>
       <div class="list">
-        ${acts.length ? acts.map(a => `<button class="list__row list__row--btn" data-go="${esc(a.view || 'dashboard')}">
-          <span class="stat__icon">${icon(a.icon || 'zap', 'ic ic--sm')}</span>
-          <div class="list__main"><div class="list__title">${esc(a.text)}</div>
-            <div class="list__sub">${esc(relTime(a.ts))}</div></div>
-        </button>`).join('') : emptyState('activity', 'Nothing yet', 'Your actions will show up here.')}
+        ${acts.length ? acts.map(a => {
+          /* Not every entry has somewhere to go — "GabikOS installed" does not.
+             Those used to render as a button pointing at the screen you were
+             already on, which looked tappable and did nothing. */
+          const inner = `<span class="stat__icon">${icon(a.icon || 'zap', 'ic ic--sm')}</span>
+            <div class="list__main"><div class="list__title">${esc(a.text)}</div>
+              <div class="list__sub">${esc(relTime(a.ts))}</div></div>`;
+          return a.view
+            ? `<button class="list__row list__row--btn" data-go="${esc(a.view)}">${inner}</button>`
+            : `<div class="list__row">${inner}</div>`;
+        }).join('') : emptyState('activity', 'Nothing yet', 'Your actions will show up here.')}
       </div></div>`;
 
     const quoteCard = `<div class="card card--pad quote">
@@ -279,7 +285,6 @@ registerView('dashboard', {
 
   onMount(root) {
     on(root, 'click', '[data-go]', (e, el) => navigate(el.dataset.go));
-    on(root, 'click', '[data-go-data]', () => navigate('settings', { tab: 'data' }));
     on(root, 'click', '[data-hide-notice]', () => { store.setSetting('hideLocalNotice', true); render(); });
     on(root, 'click', '[data-toggle]', (e, el) => run('tasks', 'toggleTask', el.dataset.toggle));
     on(root, 'click', '[data-edit]', (e, el) => run('tasks', 'editTask', el.dataset.edit));

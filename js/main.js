@@ -200,17 +200,21 @@ function initKeys() {
     if (e.key === '?') { e.preventDefault(); run('settings', 'showShortcuts'); return; }
     if (e.key === '/') { e.preventDefault(); openPalette(); return; }
 
-    // "g then x" navigation
-    if (e.key.toLowerCase() === 'g' && !mod) {
+    /* "g then x" navigation. The jump has to be tested before a new sequence
+       is started, or "g then g" — Goals, the one jump whose letter is also
+       the prefix — only ever restarts the sequence and never arrives. */
+    const k = e.key.toLowerCase();
+    if (gPressed && GOTO[k]) {
+      e.preventDefault();
+      gPressed = false;
+      clearTimeout(gTimer);
+      navigate(GOTO[k]);
+      return;
+    }
+    if (k === 'g' && !mod) {
       gPressed = true;
       clearTimeout(gTimer);
       gTimer = setTimeout(() => { gPressed = false; }, 900);
-      return;
-    }
-    if (gPressed && GOTO[e.key.toLowerCase()]) {
-      e.preventDefault();
-      gPressed = false;
-      navigate(GOTO[e.key.toLowerCase()]);
     }
   });
 }
@@ -423,7 +427,8 @@ boot().catch(err => {
   document.body.innerHTML = `<div style="display:grid;place-items:center;height:100vh;font-family:system-ui;
     text-align:center;padding:24px;color:#e9ebf2;background:#08090d">
     <div><h1 style="font-size:1.25rem;margin-bottom:8px">GabikOS could not start</h1>
-    <p style="color:#a2a9bb;font-size:0.875rem;max-width:420px">${String(err.message || err)}</p>
+    <p style="color:#a2a9bb;font-size:0.875rem;max-width:420px">${
+      String(err.message || err).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</p>
     <button onclick="location.reload()" style="margin-top:16px;padding:10px 18px;border-radius:10px;
       background:#7c5cff;color:#fff;border:0;font-size:0.875rem;cursor:pointer">Reload</button></div></div>`;
 });

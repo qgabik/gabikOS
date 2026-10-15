@@ -7,7 +7,10 @@
   border-radius:var(--r-sm);font-size:0.8375rem;font-weight:600;
   background:var(--surface-2);border:1px solid var(--line);color:var(--text);
   transition:all var(--t-fast);white-space:nowrap;flex:none}
-.btn{box-shadow:var(--hairline)}
+/* A label can come from the person's own data — a tracker they named — so a
+   button has to clip rather than take the page with it. */
+.btn{box-shadow:var(--hairline);max-width:100%;min-width:0;overflow:hidden}
+.btn > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .btn:hover{background:var(--surface-3);border-color:var(--line-strong);transform:translateY(-1px)}
 .btn:active{transform:translateY(0) scale(.97);transition:transform var(--t-press)}
 .btn:disabled{opacity:.45;pointer-events:none}
@@ -138,9 +141,13 @@ input[type="date"],input[type="time"],input[type="datetime-local"]{cursor:pointe
 .toggle.is-on::after{transform:translateX(17px);background:#fff}
 
 /* ─── Chips / badges ─── */
+/* A tag is whatever was typed, and a pasted URL has no spaces in it. Without
+   a ceiling one chip takes the row — and the screen — with it. */
 .chip{display:inline-flex;align-items:center;gap:5px;padding:3.5px 9px;border-radius:99px;
   font-size:0.725rem;font-weight:600;background:var(--surface-3);color:var(--text-2);white-space:nowrap;
+  max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;
   border:1px solid transparent;transition:all var(--t-fast)}
+.chip > *{flex:none}
 .chip .ic{width:12px;height:12px;stroke-width:2.3}
 .chip--accent{background:var(--accent-soft);color:var(--accent)}
 .chip--ok{background:var(--ok-soft);color:var(--ok)}
@@ -207,7 +214,8 @@ button.chip:hover{background:var(--active);color:var(--text)}
 .list__row--btn{cursor:pointer;text-align:left;width:100%}
 .list__row--btn:active{background:var(--active)}
 .list__main{flex:1;min-width:0}
-.list__title{font-size:0.8625rem;font-weight:550;display:flex;align-items:center;gap:8px}
+.list__title{font-size:0.8625rem;font-weight:550;display:flex;align-items:center;gap:8px;
+  min-width:0;overflow-wrap:anywhere}
 .list__sub{font-size:0.7375rem;color:var(--text-3);display:flex;align-items:center;gap:7px;margin-top:2px;flex-wrap:wrap}
 .list__actions{display:flex;align-items:center;gap:4px;opacity:0;transition:opacity var(--t-fast);flex:none}
 .list__row:hover .list__actions,.list__row:focus-within .list__actions{opacity:1}

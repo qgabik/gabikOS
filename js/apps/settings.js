@@ -185,6 +185,8 @@ registerView('settings', {
                 ${icon(v.icon || 'chevronRight', 'ic ic--sm')}${esc(v.title)}</button>`;
             }).join('')}
           </div>
+          ${barTabs().length >= 4 ? `<p class="dim mt-3" style="font-size:0.75rem">
+            Four is the most the bar holds — take one out to put another in.</p>` : ''}
           <div class="row gap-2 mt-4 row--wrap">
             <button class="btn btn--sm btn--ghost" data-tabs-reset>${icon('refresh')}Back to the default</button>
             <span class="dim" style="font-size:0.75rem">Now: ${esc(barTabs().map(id =>

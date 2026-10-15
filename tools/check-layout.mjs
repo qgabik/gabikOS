@@ -80,13 +80,29 @@ for (const size of [{ width: 393, height: 852 }, { width: 320, height: 720 }]) {
     await page.waitForTimeout(550);
     const over = await page.evaluate(() => {
       const out = [];
+      /* An element inside an overflow:hidden box is laid out at its full
+         width but drawn clipped, so its own rectangle says nothing about
+         what reaches the edge. Clamp against every clipping ancestor and
+         measure what is actually visible. */
+      const visibleRight = el => {
+        let right = el.getBoundingClientRect().right;
+        /* Stop at the scroller that holds the page: it clips to exactly the
+           width of the screen, so counting it would hide every overflow
+           rather than reveal one. */
+        for (let n = el.parentElement; n && n.id !== 'view' && n !== document.body; n = n.parentElement) {
+          const st = getComputedStyle(n);
+          if (st.overflowX !== 'visible' || st.overflow !== 'visible')
+            right = Math.min(right, n.getBoundingClientRect().right);
+        }
+        return right;
+      };
       for (const el of document.querySelectorAll('#view *')) {
         const r = el.getBoundingClientRect();
         if (!r.width || !r.height) continue;
         if (getComputedStyle(el).position === 'fixed') continue;
-        // a row meant to scroll sideways is allowed to be wider than the screen
-        if (el.closest('.seg, .scroller, .table__wrap, .quickcats')) continue;
-        const past = Math.round(r.right - innerWidth);
+        // a region meant to scroll sideways is allowed to be wider than the screen
+        if (el.closest('.seg, .scroller, .table__wrap, .quickcats, .board')) continue;
+        const past = Math.round(visibleRight(el) - innerWidth);
         if (past > 1) out.push(`${(el.className || el.tagName).toString().trim().slice(0, 32)} +${past}px`);
       }
       return [...new Set(out)].slice(0, 4);

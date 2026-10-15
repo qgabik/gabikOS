@@ -654,11 +654,6 @@ registerView('school', {
         if (next !== cur) navigate('school', { ...params(), d: next });
       }, { passive: true });
     }
-    on(root, 'click', '[data-hw]', (e, el) => {
-      const l = store.find('lessons', el.dataset.hw);
-      const subj = subjectOf(l?.subjectId);
-      import('./tasks.js').then(m => m.newTask({ title: '', tags: [subj?.short?.toLowerCase() || 'school'] }));
-    });
     on(root, 'click', '[data-subj]', (e, el) => editSubject(el.dataset.subj));
   },
 });

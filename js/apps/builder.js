@@ -330,7 +330,8 @@ function buildCollectionView(c) {
           <button class="${mode === 'cards' ? 'is-on' : ''}" data-cmode="cards">${icon('grid')}<span class="hide-sm">Cards</span></button>
         </div>
         <button class="icon-btn" data-csettings title="Tracker settings">${icon('settings')}</button>
-        <button class="btn btn--primary" data-cnew>${icon('plus')}New ${esc(col.singular || 'entry')}</button>`, col.icon);
+        <button class="btn btn--primary" data-cnew>${icon('plus')}New&nbsp;<span>${
+          esc(col.singular || 'entry')}</span></button>`, col.icon);
 
       if (!recs.length) return head + `<div class="card">${emptyState(col.icon || 'star', `No ${esc(col.name.toLowerCase())} yet`,
         `This tracker is yours — ${plural(col.fields.length, 'field')} ready to fill.`,
